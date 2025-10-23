@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iPhone Calculator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="calc" aria-label="Calculator">
+      <!-- DISPLAY -->
+      <div class="display-wrap">
+        <div class="expr" aria-live="polite">38,670 ÷ 50,000</div>
+        <div class="display">0.7734</div>
+      </div>
+
+      <!-- KEYPAD 4×5 -->
+      <div class="buttons" aria-label="Keypad">
+        <!-- row 1 -->
+        <button
+          type="button"
+          data-action="backspace"
+          aria-label="Backspace"
+          class="icon-btn"
+          title="Backspace"
+        >
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <!-- левый треугольник -->
+            <path d="M8 24 L18 14 L18 34 Z" fill="currentColor" />
+            <!-- скруглённый прямоугольник справа -->
+            <rect
+              x="18"
+              y="12"
+              width="22"
+              height="24"
+              rx="5"
+              ry="5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+            />
+          </svg>
+        </button>
+        <button type="button" data-action="clear">AC</button>
+        <button type="button" data-action="percent">%</button>
+        <button type="button" data-op="divide">÷</button>
+        <!-- row 2 -->
+        <button type="button">7</button>
+        <button type="button">8</button>
+        <button type="button">9</button>
+        <button type="button" data-op="multiply">×</button>
+        <!-- row 3 -->
+        <button type="button">4</button>
+        <button type="button">5</button>
+        <button type="button">6</button>
+        <button type="button" data-op="minus">−</button>
+        <!-- row 4 -->
+        <button type="button">1</button>
+        <button type="button">2</button>
+        <button type="button">3</button>
+        <button type="button" data-op="plus">+</button>
+        <!-- row 5 -->
+        <button
+          type="button"
+          data-action="sign"
+          class="icon-btn"
+          aria-label="Plus/Minus"
+          title="+/-"
+        >
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path
+              d="M10 12 h11 M15.5 6.5 v11"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M14 34 L34 14"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M27 34 h11"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+
+        <button type="button">0</button>
+        <button type="button" data-action="dot">.</button>
+        <button type="button" data-action="equal">=</button>
+      </div>
+    </main>
+
+    <script src="./script.js" defer></script>
+  </body>
+</html>
