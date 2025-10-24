@@ -1,16 +1,26 @@
-/* ===== база ===== */
 * {
   box-sizing: border-box;
 }
+
+body,
+.display,
+.buttons > button,
+.expr {
+  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
+  font-synthesis-weight: none;
+}
+
 html,
 body {
   height: 100%;
 }
+
 body {
   margin: 0;
   background: #000;
   color: #fff;
-  font-family: "SF Pro Rounded", ui-rounded, -apple-system, system-ui,
+  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -18,26 +28,30 @@ body {
   place-items: center;
 }
 
+/* ===== ТОКЕНЫ ===== */
 :root {
   --gap: clamp(10px, 2.8vw, 14px);
   --displayPad: clamp(16px, 4vw, 22px);
 
   --btnSize: 64px;
   --btnFontDigit: calc(var(--btnSize) * 0.48); /* цифры */
-  --btnFontOp: calc(var(--btnSize) * 0.54);
+  --btnFontOp: calc(var(--btnSize) * 0.54); /* операторы крупнее */
   --btnFontFunc: calc(var(--btnSize) * 0.46); /* функции почти как цифры */
 
-  /* палитра */
-  --digit-bg: #1c1c1c;
+  /* ПАЛИТРА (не менять) */
+  --digit-bg: #1c1c1c; /* цифры, ±, . */
   --digit-fg: #ffffff;
-  --func-bg: #505050; /* AC, %, ⌫ */
+
+  --func-bg: #505050; /* AC, %, ⌫ — серый, светлее, чем у цифр */
   --func-fg: #ffffff;
-  --op-bg: #ff9500;
+
+  --op-bg: #ff9500; /* операторы */
   --op-fg: #ffffff;
-  --expr-fg: #d4d4d2;
+
+  --expr-fg: #d4d4d2; /* строка выражения */
 }
 
-/* ===== контейнер ===== */
+/* ===== КОНТЕЙНЕР ===== */
 .calc {
   width: min(92vw, 420px);
   display: grid;
@@ -45,7 +59,7 @@ body {
   gap: var(--gap);
 }
 
-/* ===== дисплей ===== */
+/* ===== ДИСПЛЕЙ ===== */
 .display-wrap {
   background: #000;
   border-radius: 28px;
@@ -55,45 +69,57 @@ body {
   align-items: flex-end;
   gap: clamp(4px, 0.8vw, 8px);
 }
+
 .expr {
   color: var(--expr-fg);
   font-size: clamp(14px, 2.6vw, 18px);
   line-height: 1.2;
   user-select: none;
 }
+
 .display {
+  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
   font-size: clamp(40px, 10.5vw, 68px);
   line-height: 1.05;
-  font-weight: 600;
+  font-weight: 500;
   user-select: none;
 }
 
-/* ===== клавиатура ===== */
+/* ===== КЛАВИАТУРА ===== */
 .buttons {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   grid-auto-rows: 1fr;
   gap: var(--gap);
 }
+
 .buttons > button {
   width: 100%;
-  aspect-ratio: 1/1;
+  aspect-ratio: 1 / 1;
   border: none;
-  outline: none;
   border-radius: 50%;
   display: grid;
   place-items: center;
   cursor: pointer;
+
   background: var(--digit-bg);
   color: var(--digit-fg);
-  font-weight: 500; /* тоньше, как в iOS 26 */
+
+  font-family: "Inter", "SF Pro Rounded", -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  font-weight: 300; /* тоньше без потери читабельности */
+  font-variation-settings: "wght" 300; /* для variable-версии Inter */
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
   font-size: var(--btnFontDigit);
   line-height: 1;
-  letter-spacing: 0;
+
   transition: transform 0.06s ease, box-shadow 0.12s ease;
 }
 
-/* функциональные (AC, %, backspace) — светло-серые и почти как цифры */
+/* ФУНКЦИИ: AC, %, ⌫ — серые, белый текст */
 button[data-action],
 button[aria-label="Backspace"] {
   background: var(--func-bg);
@@ -101,7 +127,7 @@ button[aria-label="Backspace"] {
   font-size: var(--btnFontFunc);
 }
 
-/* исключения: +/- и . выглядят как цифровые */
+/* Исключения: ± и . — как цифровые */
 button[data-action="sign"],
 button[data-action="dot"] {
   background: var(--digit-bg);
@@ -109,7 +135,7 @@ button[data-action="dot"] {
   font-size: var(--btnFontDigit);
 }
 
-/* операторы и = — оранжевые, САМЫЕ крупные */
+/* ОПЕРАТОРЫ и = — оранжевые, самые крупные */
 button[data-op],
 button[data-action="equal"] {
   background: var(--op-bg);
@@ -117,32 +143,50 @@ button[data-action="equal"] {
   font-size: var(--btnFontOp);
 }
 
-/* активный оператор (если подсвечиваешь из JS) */
+/* Подсветка активного оператора (управляется из JS) */
 button.active-op {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18) inset;
 }
 
-/* нажатие/фокус */
+/* Нажатие / фокус */
 .buttons > button:active {
   transform: scale(0.98);
 }
 .buttons > button:focus-visible {
+  outline: none;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
-/* точные размеры двух ИКОНOК (plus.slash.minus и delete.left) */
+/* SVG-иконки (± как slash, ← delete и т.п.) */
 .icon-btn svg {
   width: 62%;
   height: 62%;
   display: block;
 }
+
+.icon-btn svg path,
+.icon-btn svg rect {
+  stroke-width: 1.8; /* было 2.2 — визуально ближе к iOS */
+}
+
+/* Оптический подъём контента внутри кнопки */
 .buttons > button > * {
   transform: translateY(-1px);
-} /* оптический подъём контента */
+}
 
-/* низкие экраны: поджать результат */
+/* Низкие экраны: поджать результат */
 @media (max-height: 740px) {
   .display {
     font-size: clamp(34px, 9.5vw, 60px);
+  }
+}
+
+/* Доступность: если пользователь отключил анимацию — уберём микродвижения */
+@media (prefers-reduced-motion: reduce) {
+  .buttons > button {
+    transition: none;
+  }
+  .buttons > button:active {
+    transform: none;
   }
 }
