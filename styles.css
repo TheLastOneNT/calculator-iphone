@@ -10,7 +10,6 @@ body {
   margin: 0;
   background: #000;
   color: #fff;
-  /* строго просим SF Pro Rounded; если он не загрузится — ты сразу увидишь «квадратную» точку */
   font-family: "SF Pro Rounded", ui-rounded, -apple-system, system-ui,
     sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -19,53 +18,23 @@ body {
   place-items: center;
 }
 
-/* ===== подключение SF Pro Rounded (должны лежать у тебя в /fonts) ===== */
-/* Если пути не совпадут — шрифт не применится, точка снова станет квадратной. */
-@font-face {
-  font-family: "SF Pro Rounded";
-  src: local("SF Pro Rounded Regular"),
-    url("/fonts/SFProRounded-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "SF Pro Rounded";
-  src: local("SF Pro Rounded Medium"),
-    url("/fonts/SFProRounded-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "SF Pro Rounded";
-  src: local("SF Pro Rounded Semibold"),
-    url("/fonts/SFProRounded-Semibold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* ===== токены под iOS 26 ===== */
 :root {
   --gap: clamp(10px, 2.8vw, 14px);
   --displayPad: clamp(16px, 4vw, 22px);
 
-  /* типографика от диаметра — пересчитывается из JS */
   --btnSize: 64px;
   --btnFontDigit: calc(var(--btnSize) * 0.48); /* цифры */
-  --btnFontOp: calc(
-    var(--btnSize) * 0.54
-  ); /* ОПЕРАТОРЫ — крупнее, как на рефе */
+  --btnFontOp: calc(var(--btnSize) * 0.54);
   --btnFontFunc: calc(var(--btnSize) * 0.46); /* функции почти как цифры */
 
   /* палитра */
-  --digit-bg: #2b2b2d;
-  --digit-fg: #ededed; /* не чисто белый — как на iOS */
-  --func-bg: #7f7f82;
+  --digit-bg: #1c1c1c;
+  --digit-fg: #ffffff;
+  --func-bg: #505050; /* AC, %, ⌫ */
   --func-fg: #ffffff;
-  --op-bg: #ff9f0a;
+  --op-bg: #ff9500;
   --op-fg: #ffffff;
+  --expr-fg: #d4d4d2;
 }
 
 /* ===== контейнер ===== */
@@ -87,7 +56,7 @@ body {
   gap: clamp(4px, 0.8vw, 8px);
 }
 .expr {
-  color: #8f8f93;
+  color: var(--expr-fg);
   font-size: clamp(14px, 2.6vw, 18px);
   line-height: 1.2;
   user-select: none;
