@@ -1,31 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!--
-      iPhone-like Calculator (modular architecture)
-      - Clean, accessible markup
-      - ES Modules entry at /src/index.js
-      - No inline scripts/styles (separation of concerns)
-    -->
     <meta charset="UTF-8" />
+    <!-- Ensure responsive layout on mobile devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>iPhone Calculator</title>
 
-    <!-- Typeface used for keypad labels; UI uses SF fallback across platforms -->
+    <!-- Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap"
       rel="stylesheet"
     />
 
-    <link rel="stylesheet" href="./styles.css" />
+    <!-- App stylesheet -->
+    <link rel="stylesheet" href="./styles/main.css" />
   </head>
   <body>
+    <!--
+      Main app container.
+      The layout is intentionally simple: a display block and a 4×5 keypad.
+    -->
     <main class="calc" aria-label="Calculator">
       <!-- Display -->
       <div class="display-wrap">
-        <!-- Expression (top line). aria-live announces changes non-intrusively. -->
+        <!-- Top expression (announced politely for accessibility) -->
         <div class="expr" aria-live="polite"></div>
-        <!-- Result (bottom line). A .fit layer is injected by view.js for scaling. -->
+        <!-- Bottom result; text will be injected and auto-fitted by JS -->
         <div class="display">0</div>
       </div>
 
@@ -57,21 +57,25 @@
         <button type="button" data-action="clear">AC</button>
         <button type="button" data-action="percent">%</button>
         <button type="button" data-op="divide">÷</button>
+
         <!-- row 2 -->
         <button type="button">7</button>
         <button type="button">8</button>
         <button type="button">9</button>
         <button type="button" data-op="multiply">×</button>
+
         <!-- row 3 -->
         <button type="button">4</button>
         <button type="button">5</button>
         <button type="button">6</button>
         <button type="button" data-op="minus">−</button>
+
         <!-- row 4 -->
         <button type="button">1</button>
         <button type="button">2</button>
         <button type="button">3</button>
         <button type="button" data-op="plus">+</button>
+
         <!-- row 5 -->
         <button
           type="button"
@@ -101,14 +105,13 @@
             />
           </svg>
         </button>
-
         <button type="button">0</button>
         <button type="button" data-action="dot">.</button>
         <button type="button" data-action="equal">=</button>
       </div>
     </main>
 
-    <!-- ES module bootstrap -->
+    <!-- ES Modules entry -->
     <script type="module" src="./src/index.js"></script>
   </body>
 </html>

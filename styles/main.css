@@ -1,14 +1,8 @@
-/* ================================
-   Base / Resets
-   ================================ */
-
+/* ---------------------------------------
+ * Global primitives
+ * -------------------------------------*/
 * {
   box-sizing: border-box;
-}
-
-html,
-body {
-  height: 100%;
 }
 
 body,
@@ -18,6 +12,11 @@ body,
   font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
     sans-serif;
   font-synthesis-weight: none;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
@@ -30,52 +29,49 @@ body {
   place-items: center;
 }
 
-/* ================================
-   Design Tokens
-   ================================ */
-
+/* ---------------------------------------
+ * Design tokens
+ * -------------------------------------*/
 :root {
-  /* spacing */
   --gap: clamp(10px, 2.8vw, 14px);
   --displayPad: clamp(16px, 4vw, 22px);
 
-  /* keypad sizing */
   --btnSize: 64px;
   --btnFontDigit: calc(var(--btnSize) * 0.48);
   --btnFontOp: calc(var(--btnSize) * 0.54);
   --btnFontFunc: calc(var(--btnSize) * 0.46);
 
-  /* colors */
   --digit-bg: #1c1c1c;
   --digit-fg: #ffffff;
+
   --func-bg: #505050;
   --func-fg: #ffffff;
+
   --op-bg: #ff9500;
   --op-fg: #ffffff;
+
   --expr-fg: #d4d4d2;
 
-  /* display typography boundaries (script scales within these) */
+  /* Display sizes (used by JS fitting logic as upper bound) */
   --display-font-max: 68px;
   --display-font-min: 40px;
 }
 
-/* ================================
-   App Container
-   ================================ */
-
+/* ---------------------------------------
+ * App container
+ * -------------------------------------*/
 .calc {
   width: min(92vw, 420px);
-  max-width: 420px; /* hard cap to avoid overflow on large text */
+  max-width: 420px;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: var(--gap);
-  overflow: hidden; /* defensive: inner overflow must not affect layout */
+  overflow: hidden; /* Prevent any internal overflow affecting layout */
 }
 
-/* ================================
-   Display (expression + result)
-   ================================ */
-
+/* ---------------------------------------
+ * Display
+ * -------------------------------------*/
 .display-wrap {
   background: #000;
   border-radius: 28px;
@@ -86,7 +82,7 @@ body {
   gap: clamp(4px, 0.8vw, 8px);
 }
 
-/* Expression (top line): fixed line-box to prevent layout shift */
+/* Top expression: fixed height to avoid layout jumps */
 .expr {
   color: var(--expr-fg);
   font-size: clamp(14px, 2.6vw, 18px);
@@ -95,39 +91,38 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 1.2em; /* preserves vertical space even when empty */
+  min-height: 1.2em;
   text-align: right;
 }
 
-/* Result (bottom line): static box; inner text is absolutely positioned & scaled by JS */
+/* Bottom result container: fixed box; internal text is absolutely positioned */
 .display {
   font-size: clamp(var(--display-font-min), 10.5vw, var(--display-font-max));
   line-height: 1.05;
   font-weight: 500;
   user-select: none;
 
-  position: relative; /* anchor for the .fit layer */
+  position: relative;
   width: 100%;
   text-align: right;
   white-space: nowrap;
-  overflow: hidden; /* nothing is allowed to spill out */
-  min-height: 1.05em; /* keeps height constant even with absolute child */
+  overflow: hidden;
+  min-height: 1.05em;
 }
 
-/* Scaled text layer (injected by view.js). Absolute = no reflow when scaling. */
+/* Absolutely positioned scalable text layer */
 .display .fit {
   position: absolute;
   right: 0;
   bottom: 0;
   display: inline-block;
-  transform-origin: right bottom; /* matches iOS visual behavior */
+  transform-origin: right bottom;
   will-change: transform;
 }
 
-/* ================================
-   Keypad Grid
-   ================================ */
-
+/* ---------------------------------------
+ * Keypad
+ * -------------------------------------*/
 .buttons {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -135,7 +130,6 @@ body {
   gap: var(--gap);
 }
 
-/* Button baseline styling (digits by default) */
 .buttons > button {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -161,7 +155,7 @@ body {
   transition: transform 0.06s ease, box-shadow 0.12s ease;
 }
 
-/* Function keys: AC, %, Backspace — lighter gray */
+/* Functional keys (AC, %, ⌫) */
 button[data-action],
 button[aria-label="Backspace"] {
   background: var(--func-bg);
@@ -169,7 +163,7 @@ button[aria-label="Backspace"] {
   font-size: var(--btnFontFunc);
 }
 
-/* Exceptions: ± and . visually match digit buttons */
+/* Exceptions: ± and . behave visually like digits */
 button[data-action="sign"],
 button[data-action="dot"] {
   background: var(--digit-bg);
@@ -177,7 +171,7 @@ button[data-action="dot"] {
   font-size: var(--btnFontDigit);
 }
 
-/* Operators and equals — orange, slightly larger type */
+/* Operators and equals */
 button[data-op],
 button[data-action="equal"] {
   background: var(--op-bg);
@@ -185,14 +179,14 @@ button[data-action="equal"] {
   font-size: var(--btnFontOp);
 }
 
-/* Active operator highlight (toggled via script.js) */
+/* Active operator highlight (toggled via JS) */
 button.active-op {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28) inset,
     0 0 0 2px rgba(255, 255, 255, 0.18);
   filter: brightness(1.08);
 }
 
-/* Press / focus feedback */
+/* Press / focus */
 .buttons > button:active {
   transform: scale(0.98);
 }
@@ -201,10 +195,7 @@ button.active-op {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
-/* ================================
-   Icons
-   ================================ */
-
+/* Icons */
 .icon-btn svg {
   width: 62%;
   height: 62%;
@@ -215,25 +206,19 @@ button.active-op {
   stroke-width: 1.8;
 }
 
-/* Subtle optical lift of glyphs within circular buttons */
+/* Visual optical lift */
 .buttons > button > * {
   transform: translateY(-1px);
 }
 
-/* ================================
-   Responsive Adjustments
-   ================================ */
-
+/* Small-height screens: slightly reduce max display size */
 @media (max-height: 740px) {
   :root {
     --display-font-max: 60px;
-  } /* slightly smaller cap for short viewports */
+  }
 }
 
-/* ================================
-   Reduced Motion
-   ================================ */
-
+/* Reduced motion: disable micro-transitions */
 @media (prefers-reduced-motion: reduce) {
   .buttons > button {
     transition: none;

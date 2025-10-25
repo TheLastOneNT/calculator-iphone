@@ -1,55 +1,37 @@
-// View layer: DOM refs, rendering, scaling, highlighting
+// View layer: DOM refs, rendering, scaling, and event binding.
 
-import { SELECTORS } from "./config.js";
+import { renderDisplay } from "./format.js";
 
-export function createView() {
-  const exprEl = document.querySelector(SELECTORS.expr);
-  const displayEl = document.querySelector(SELECTORS.display);
-  const buttonsEl = document.querySelector(SELECTORS.buttons);
-  const clearBtn = document.querySelector(SELECTORS.clearBtn);
-  const opButtons = Array.from(document.querySelectorAll(SELECTORS.opButtons));
+export function createView({
+  exprSelector,
+  displaySelector,
+  buttonsSelector,
+  clearSelector,
+  opButtonsSelector,
+  minScale = 0.5,
+}) {
+  // --- DOM
+  const exprEl = document.querySelector(exprSelector);
+  const displayEl = document.querySelector(displaySelector);
+  const buttonsEl = document.querySelector(buttonsSelector);
+  const clearBtn = document.querySelector(clearSelector);
+  const opButtons = Array.from(document.querySelectorAll(opButtonsSelector));
 
   if (!displayEl || !buttonsEl) {
     throw new Error("Missing .display or .buttons in DOM");
   }
 
-  // scaling layer inside .display
-  let fitSpan = null;
+  // Create scalable layer inside the result display so layout never shifts.
+  let fitSpan = document.createElement("span");
+  fitSpan.className = "fit";
+  while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
+  displayEl.appendChild(fitSpan);
 
-  function mount() {
-    fitSpan = document.createElement("span");
-    fitSpan.className = "fit";
-    while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
-    displayEl.appendChild(fitSpan);
-  }
-
-  function setDisplayText(text) {
-    if (fitSpan) fitSpan.textContent = text;
-    else displayEl.textContent = text;
-  }
-
-  function setExprText(text) {
-    if (exprEl) exprEl.textContent = text || "";
-  }
-
-  function setClearLabel(text) {
-    if (clearBtn) clearBtn.textContent = text;
-  }
-
-  function highlightOperator(op) {
-    opButtons.forEach((btn) => {
-      const isActive = btn.dataset.op && mapAttrToOp(btn.dataset.op) === op;
-      btn.classList.toggle("active-op", !!isActive);
-    });
-  }
-
-  function clearOpHighlight() {
-    opButtons.forEach((btn) => btn.classList.remove("active-op"));
-  }
-
+  // --- Rendering helpers
   function fitDisplayText() {
     if (!fitSpan) return;
     fitSpan.style.transform = "scale(1)";
+
     const cw = displayEl.clientWidth;
     const sw = fitSpan.scrollWidth;
     if (sw <= 0 || cw <= 0) return;
@@ -57,58 +39,72 @@ export function createView() {
     let scale = cw / sw;
     if (!Number.isFinite(scale) || scale <= 0) scale = 1;
     if (scale > 1) scale = 1;
-    const MIN_SCALE = 0.5;
-    if (scale < MIN_SCALE) scale = MIN_SCALE;
+    if (scale < minScale) scale = minScale;
 
     fitSpan.style.transform = `scale(${scale})`;
   }
 
-  function render({ displayText, exprText, clearText, operator, waiting }) {
-    setDisplayText(displayText);
-    setExprText(exprText);
-    setClearLabel(clearText);
+  function updateClearLabel(currentValue, isPercentText) {
+    if (!clearBtn) return;
+    const hasPercent = isPercentText(currentValue);
+    const hasTyped =
+      currentValue !== "0" || hasPercent || /[.]/.test(currentValue);
+    clearBtn.textContent = hasTyped ? "C" : "AC";
+  }
 
-    if (operator && waiting) highlightOperator(operator);
-    else clearOpHighlight();
+  function updateExpressionLine(exprFrozen) {
+    if (exprEl) exprEl.textContent = exprFrozen || "";
+  }
 
+  function highlightOperator(op, OP_FROM_ATTR) {
+    opButtons.forEach((btn) => {
+      btn.classList.toggle(
+        "active-op",
+        btn.dataset.op && OP_FROM_ATTR[btn.dataset.op] === op
+      );
+    });
+  }
+
+  function clearOpHighlight() {
+    opButtons.forEach((btn) => btn.classList.remove("active-op"));
+  }
+
+  // Public render: consumes model and prepared bottom text
+  function update(model, bottomText) {
+    const { cfg, state } = model;
+    const txt = renderDisplay(bottomText, cfg, state.showingResult);
+    fitSpan.textContent = txt;
+
+    updateClearLabel(state.currentValue, model.isPercentText || (() => false));
+    updateExpressionLine(state.exprFrozen);
     fitDisplayText();
   }
 
-  function mapAttrToOp(attr) {
-    switch (attr) {
-      case "plus":
-        return "add";
-      case "minus":
-        return "sub";
-      case "multiply":
-        return "mul";
-      case "divide":
-        return "div";
-      default:
-        return null;
-    }
-  }
+  // --- Event binding (delegation + keyboard)
+  function bindUI({ onDigit, onAction, onOperator, onKey }) {
+    // Buttons
+    buttonsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
 
-  function onResize(handler) {
-    let rafId = null;
-    const r = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        fitDisplayText();
-        if (typeof handler === "function") handler();
-        rafId = null;
-      });
-    };
-    window.addEventListener("resize", r);
-    return () => window.removeEventListener("resize", r);
+      const txt = btn.textContent.trim();
+      const action = btn.dataset.action;
+      const op = btn.dataset.op;
+
+      if (/^[0-9]$/.test(txt)) return onDigit(txt);
+      if (action) return onAction(action, txt);
+      if (op) return onOperator(op);
+    });
+
+    // Keyboard
+    document.addEventListener("keydown", (e) => onKey(e));
   }
 
   return {
-    mount,
-    render,
+    update,
+    bindUI,
     fitDisplayText,
-    elements: { buttonsEl, clearBtn },
-    utils: { mapAttrToOp },
-    onResize,
+    highlightOperator,
+    clearOpHighlight,
   };
 }

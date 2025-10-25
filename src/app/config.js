@@ -1,20 +1,14 @@
-// Shared constants & operator maps
+// Centralized configuration and operator maps.
 
-export const MAX_LEN = 13; // iOS-like output cap
-export const UNDEF = "Undefined"; // divide-by-zero / invalid result
-
-export const SELECTORS = {
-  expr: ".expr",
-  display: ".display",
-  buttons: ".buttons",
-  clearBtn: 'button[data-action="clear"]',
-  opButtons: "[data-op]",
-};
-
-export const OP_MAP = { add: "+", sub: "−", mul: "×", div: "÷" };
-export const OP_FROM_ATTR = {
-  plus: "add",
-  minus: "sub",
-  multiply: "mul",
-  divide: "div",
+export const cfg = {
+  MAX_LEN: 13, // iOS-like display length cap
+  UNDEF: "Undefined", // shown for invalid operations
+  MIN_SCALE: 0.5, // lower bound for display text scale
+  OP_MAP: { add: "+", sub: "−", mul: "×", div: "÷" },
+  OP_FROM_ATTR: {
+    plus: "add",
+    minus: "sub",
+    multiply: "mul",
+    divide: "div",
+  },
 };

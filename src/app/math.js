@@ -1,6 +1,4 @@
-// Numeric evaluation with operator precedence and iOS percent semantics
-
-import { OP_MAP } from "./config.js";
+// Math / evaluation with operator precedence and iOS percent semantics.
 
 export function applyOp(a, op, b) {
   switch (op) {
@@ -17,11 +15,7 @@ export function applyOp(a, op, b) {
   }
 }
 
-/**
- * Resolve right operand that may be a {percent} node using iOS rules:
- * - add/sub: right% is left * (right/100)
- * - mul/div: right% is right/100
- */
+// Right-operand may be a percent node: resolve using iOS rules.
 export function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === "number") return rightNode;
   if (rightNode && rightNode.percent) {
@@ -34,7 +28,6 @@ export function resolveRightOperand(left, op, rightNode) {
 }
 
 export function evaluateTokens(seq) {
-  // split into values & ops then fold with precedence
   const values = [];
   const ops = [];
   let expectNumber = true;
@@ -51,10 +44,9 @@ export function evaluateTokens(seq) {
       expectNumber = true;
     }
   }
-  // drop trailing operator
   if (ops.length === values.length) ops.pop();
 
-  // pass 1: × ÷
+  // Pass 1: × / ÷
   for (let i = 0; i < ops.length; ) {
     const op = ops[i];
     if (op === "mul" || op === "div") {
@@ -72,7 +64,7 @@ export function evaluateTokens(seq) {
     }
   }
 
-  // pass 2: + −
+  // Pass 2: + / −
   while (ops.length) {
     const op = ops.shift();
     const leftVal =
@@ -92,19 +84,6 @@ export function evaluateTokens(seq) {
   return { error: false, value: final };
 }
 
-/** Build top expression text from tokens (e.g., "12 × 5 + 10%"). */
-export function buildExprForTop(tokens, formatExprPart) {
-  let out = "";
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (typeof t === "number") out += formatExprPart(t);
-    else if (typeof t === "string") out += " " + OP_MAP[t] + " ";
-    else if (t && t.percent) out += formatExprPart(String(t.value) + "%");
-  }
-  return out.trim();
-}
-
-/** Extract last binary op for "repeat equals". */
 export function extractLastOp(seq) {
   let lastOpIndex = -1;
   for (let i = seq.length - 2; i >= 1; i--) {
@@ -114,9 +93,15 @@ export function extractLastOp(seq) {
     }
   }
   if (lastOpIndex === -1) return null;
-  return {
-    leftIndex: lastOpIndex - 1,
-    op: seq[lastOpIndex],
-    rightIndex: lastOpIndex + 1,
-  };
+
+  const leftVal = resolveNodeToNumber(seq[lastOpIndex - 1], 0, "add");
+  const op = seq[lastOpIndex];
+  const rightVal = resolveRightOperand(leftVal, op, seq[lastOpIndex + 1]);
+  return { op, right: rightVal };
+}
+
+export function resolveNodeToNumber(node, left, op) {
+  if (typeof node === "number") return node;
+  if (node && node.percent) return resolveRightOperand(left, op, node);
+  return 0;
 }
