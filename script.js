@@ -1,40 +1,51 @@
-// === iPhone-like Calculator Logic (Stage 2, clean full file, trimmed: no history, no extra modes) ===
+// === iPhone-like Calculator Logic (Stage 2, clean full file; no history/no extra modes) ===
+//
+// This module implements an iOS-style basic calculator with:
+// - live expression line (top) and scalable result line (bottom),
+// - operator precedence (+/− after ×/÷),
+// - iOS-like percent semantics and "repeat equals" behavior,
+// - strictly static layout: text scales inside the display, the UI never reflows.
 
-// ------------------------------------
-// DOM
-// ------------------------------------
+/* ------------------------------------
+ * DOM
+ * ------------------------------------ */
+
 document.addEventListener("keydown", onKey);
+
 const exprEl = document.querySelector(".expr");
 const displayEl = document.querySelector(".display");
 const buttonsEl = document.querySelector(".buttons");
 const clearBtn = document.querySelector('button[data-action="clear"]');
 const opButtons = Array.from(document.querySelectorAll("[data-op]"));
-// слой для масштабирования текста результата
+
+// Scalable text layer injected into .display so scaling never affects layout.
 let fitSpan = null;
 
 if (!displayEl || !buttonsEl) {
   throw new Error("Missing .display or .buttons in DOM");
 }
 
-// ------------------------------------
-// State
-// ------------------------------------
-let currentValue = "0";
+/* ------------------------------------
+ * State
+ * ------------------------------------ */
+
+let currentValue = "0"; // current entry (string; may be "0.", "-3.2", "15%")
 let operator = null; // 'add' | 'sub' | 'mul' | 'div' | null
-let waitingForSecond = false;
-let exprFrozen = "";
-let tokens = [];
+let waitingForSecond = false; // when true, next digit starts a new number
+let exprFrozen = ""; // top expression line, frozen on '=' or error
+let tokens = []; // parsed tokens: numbers, {percent}, and operators
 
-let lastOperator = null;
+let lastOperator = null; // for "repeat equals" (A op B, then "=" again)
 let lastOperand = null;
-let showingResult = false;
+let showingResult = false; // when true, negatives render without parentheses
 
-const MAX_LEN = 13;
-const UNDEF = "Undefined";
+const MAX_LEN = 13; // output length cap to emulate iOS rounding
+const UNDEF = "Undefined"; // label for invalid operations (e.g., divide by zero)
 
-// ------------------------------------
-// Helpers / Tokens
-// ------------------------------------
+/* ------------------------------------
+ * Helpers / Tokens
+ * ------------------------------------ */
+
 const OP_MAP = { add: "+", sub: "−", mul: "×", div: "÷" };
 const OP_FROM_ATTR = {
   plus: "add",
@@ -46,43 +57,60 @@ const OP_FROM_ATTR = {
 function isPercentText(s) {
   return typeof s === "string" && s.trim().endsWith("%");
 }
+
 function toNumberSafe(s) {
+  // Tolerate partial inputs like ".", "-.", "0." during typing.
   if (s === "." || s === "-" || s === "-." || s === "0.") return 0;
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
 
-// ------------------------------------
-// Rendering
-// ------------------------------------
+/* ------------------------------------
+ * Rendering
+ * ------------------------------------ */
+
 function renderDisplay(text) {
+  // Format final text for the bottom display, matching iOS nuances.
   const t = String(text).trim();
   if (t === UNDEF) return t;
-  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t; // выражение в live-строке
+
+  // If live expression (contains operator glyphs and spaces), render as-is.
+  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
+
+  // Percent input: render negatives as (-10%); final numeric results are plain numbers.
   if (isPercentText(t)) {
     const core = t.slice(0, -1).trim();
     if (core.startsWith("-")) return `(-${core.slice(1)}%)`;
     return t;
   }
+
+  // Negatives: during typing wrap in parentheses; on result show plain "-N".
   if (/^-/.test(t)) return showingResult ? t : `(-${t.slice(1)})`;
+
   return t;
 }
 
-// Масштабируем только текст результата. Абсолютное позиционирование .fit гарантирует нулевое влияние на макет.
+/**
+ * Scale only the result text (fitSpan) so the container never grows/shifts.
+ * Absolute positioning ensures zero impact on layout while scaling.
+ */
 function fitDisplayText() {
   if (!fitSpan) return;
 
-  // сброс масштаба перед измерением
+  // Reset scale before measuring intrinsic width.
   fitSpan.style.transform = "scale(1)";
 
-  const cw = displayEl.clientWidth; // доступная ширина контейнера
-  const sw = fitSpan.scrollWidth; // естественная ширина текста
+  const cw = displayEl.clientWidth; // available width
+  const sw = fitSpan.scrollWidth; // natural text width
   if (sw <= 0 || cw <= 0) return;
 
-  let scale = cw / sw; // только уменьшение
+  // Downscale only — never upscale text.
+  let scale = cw / sw;
   if (!Number.isFinite(scale) || scale <= 0) scale = 1;
-  if (scale > 1) scale = 1; // не увеличиваем
-  const MIN_SCALE = 0.5; // нижний предел для читабельности
+  if (scale > 1) scale = 1;
+
+  // Lower bound for readability.
+  const MIN_SCALE = 0.5;
   if (scale < MIN_SCALE) scale = MIN_SCALE;
 
   fitSpan.style.transform = `scale(${scale})`;
@@ -93,12 +121,14 @@ function updateDisplay() {
   if (fitSpan) {
     fitSpan.textContent = txt;
   } else {
+    // Fallback (shouldn't happen after init, but safe in SSR/partial mounts).
     displayEl.textContent = txt;
   }
+
   updateClearLabel();
   updateExpressionLine();
 
-  // подгоняем масштаб в конце, чтобы текст гарантированно помещался
+  // Always scale at the end so measurements reflect the latest content.
   fitDisplayText();
 }
 
@@ -114,7 +144,10 @@ function updateClearLabel() {
   clearBtn.textContent = hasTyped ? "C" : "AC";
 }
 
-// ограничение длины и форматирование
+/* ------------------------------------
+ * Formatting / Numeric presentation
+ * ------------------------------------ */
+
 function trimTrailingZeros(str) {
   if (!str.includes(".")) return str;
   let [i, f] = str.split(".");
@@ -122,6 +155,13 @@ function trimTrailingZeros(str) {
   f = f.replace(/0+$/, "");
   return f.length ? i + "." + f : i;
 }
+
+/**
+ * Convert a number to a string under MAX_LEN constraints:
+ * - Prefer fixed/trimmed decimals up to the limit.
+ * - Fall back to exponential if needed.
+ * - Return "Undefined" for invalid numbers.
+ */
 function toDisplayString(num) {
   if (!Number.isFinite(num)) return UNDEF;
 
@@ -131,7 +171,7 @@ function toDisplayString(num) {
 
   if (s.includes(".")) {
     const [i, f = ""] = s.split(".");
-    const free = Math.max(0, MAX_LEN - i.length - 1);
+    const free = Math.max(0, MAX_LEN - i.length - 1); // room for fractional digits
     if (free > 0) {
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
@@ -141,16 +181,19 @@ function toDisplayString(num) {
     }
   }
 
-  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // для e+NN
+  // Reserve characters for "e±NN".
+  const reserve = (s.startsWith("-") ? 1 : 0) + 6;
   const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
   return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
 }
 
-// ------------------------------------
-// Input
-// ------------------------------------
+/* ------------------------------------
+ * Input
+ * ------------------------------------ */
+
 function beginTyping() {
+  // Reset derived state when user starts typing a new number.
   showingResult = false;
   exprFrozen = "";
 }
@@ -188,6 +231,7 @@ function inputDot() {
 
 function handleDigit(d) {
   if (currentValue === UNDEF) {
+    // Clear implicit error state on next digit entry.
     currentValue = d;
     operator = null;
     waitingForSecond = false;
@@ -200,6 +244,7 @@ function handleDigit(d) {
     return;
   }
   if (isPercentText(currentValue)) {
+    // Starting fresh after a percent literal.
     currentValue = d;
     waitingForSecond = false;
     beginTyping();
@@ -214,7 +259,11 @@ function handleAction(action, txt) {
     inputDot();
     return;
   }
+
   if (action === "clear") {
+    // iOS behavior:
+    // - If entering second operand, C removes it and keeps "A op".
+    // - Else, C clears entry, AC clears all.
     if (operator && !waitingForSecond) {
       currentValue = "0";
       waitingForSecond = true;
@@ -227,7 +276,9 @@ function handleAction(action, txt) {
     }
     return;
   }
+
   if (action !== "clear" && currentValue === UNDEF) return;
+
   if (action === "equal" || action === "equals") {
     doEquals();
     return;
@@ -253,9 +304,10 @@ function handleOperator(opAttr) {
   setOperator(nextOp);
 }
 
-// ------------------------------------
-// Editing / Clear
-// ------------------------------------
+/* ------------------------------------
+ * Editing / Clear
+ * ------------------------------------ */
+
 function clearAll() {
   currentValue = "0";
   operator = null;
@@ -279,6 +331,7 @@ function clearEntry() {
 }
 
 function backspace() {
+  // If an operator was just chosen, backspace removes it (iOS behavior).
   if (waitingForSecond) {
     waitingForSecond = false;
     operator = null;
@@ -291,12 +344,14 @@ function backspace() {
     updateDisplay();
     return;
   }
+
   if (currentValue.endsWith("%")) {
     currentValue = currentValue.slice(0, -1);
     beginTyping();
     updateDisplay();
     return;
   }
+
   currentValue = currentValue.slice(0, -1);
   if (currentValue === "" || currentValue === "-") currentValue = "0";
   beginTyping();
@@ -304,9 +359,11 @@ function backspace() {
 }
 
 function toggleSign() {
+  // iOS: do nothing for zero.
   if (currentValue === "0" || currentValue === "0.") return;
 
   if (isPercentText(currentValue)) {
+    // Flip sign inside the percent literal.
     const core = currentValue.slice(0, -1).trim();
     const flipped = core.startsWith("-") ? core.slice(1) : "-" + core;
     currentValue = flipped + "%";
@@ -324,11 +381,14 @@ function toggleSign() {
   }
   if (!operator) exprFrozen = "";
   showingResult = false;
+
+  // Normalize "-0" → "0".
   if (currentValue === "-0") currentValue = "0";
   updateDisplay();
 }
 
 function percent() {
+  // If operator is selected and second operand not started: interpret as A%.
   if (operator && waitingForSecond) {
     currentValue = String(peekLastNumberToken() ?? 0) + "%";
     operator = null;
@@ -342,12 +402,14 @@ function percent() {
     return;
   }
 
+  // Append % to current input (once).
   if (!isPercentText(currentValue)) {
     currentValue = currentValue.trim() + "%";
     showingResult = false;
     updateDisplay();
   }
   if (currentValue.length > MAX_LEN) {
+    // Keep the trailing '%' even when trimming.
     currentValue = currentValue.slice(0, MAX_LEN);
     if (!currentValue.endsWith("%"))
       currentValue = currentValue.slice(0, -1) + "%";
@@ -355,12 +417,14 @@ function percent() {
   }
 }
 
-// ------------------------------------
-// Operators & tokens
-// ------------------------------------
+/* ------------------------------------
+ * Operators & tokens
+ * ------------------------------------ */
+
 function setOperator(nextOp) {
   showingResult = false;
 
+  // Change the operator before entering the second operand.
   if (operator && waitingForSecond) {
     operator = nextOp;
     if (tokens.length && typeof tokens[tokens.length - 1] === "string") {
@@ -371,6 +435,7 @@ function setOperator(nextOp) {
     return;
   }
 
+  // Push current number into tokens when transitioning between operands.
   if (!operator || !waitingForSecond) {
     pushCurrentAsToken();
   }
@@ -403,9 +468,10 @@ function peekLastNumberToken() {
   return null;
 }
 
-// ------------------------------------
-// Evaluation with precedence
-// ------------------------------------
+/* ------------------------------------
+ * Evaluation with precedence
+ * ------------------------------------ */
+
 function applyOp(a, op, b) {
   switch (op) {
     case "add":
@@ -421,6 +487,12 @@ function applyOp(a, op, b) {
   }
 }
 
+/**
+ * Resolve a right operand that might be a percent node,
+ * using iOS rules:
+ * - For add/sub: right% is (left * right/100)
+ * - For mul/div: right% is (right/100)
+ */
 function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === "number") return rightNode;
   if (rightNode && rightNode.percent) {
@@ -433,10 +505,12 @@ function resolveRightOperand(left, op, rightNode) {
 }
 
 function evaluateTokens(seq) {
+  // Shunting-lite: split into values and ops, then fold with precedence.
   const values = [];
   const ops = [];
   let expectNumber = true;
 
+  // Tokenize: number / percent nodes and operators only; ignore trailing op.
   for (let i = 0; i < seq.length; i++) {
     const t = seq[i];
     if (expectNumber) {
@@ -451,6 +525,7 @@ function evaluateTokens(seq) {
   }
   if (ops.length === values.length) ops.pop();
 
+  // Pass 1: × / ÷
   for (let i = 0; i < ops.length; ) {
     const op = ops[i];
     if (op === "mul" || op === "div") {
@@ -468,6 +543,7 @@ function evaluateTokens(seq) {
     }
   }
 
+  // Pass 2: + / −
   while (ops.length) {
     const op = ops.shift();
     const leftVal =
@@ -487,27 +563,38 @@ function evaluateTokens(seq) {
   return { error: false, value: final };
 }
 
-// форматирование частей
+/* ------------------------------------
+ * Expression formatting (top line)
+ * ------------------------------------ */
+
 function formatExprPart(value) {
+  // Preserve "0." / "-0." while typing.
   if (typeof value === "string") {
     const s = value.trim();
+
+    // Raw percent literal as text.
     if (s.endsWith("%")) {
       const core = s.slice(0, -1).trim();
       const n = Number(core);
       return (Number.isFinite(n) ? n.toLocaleString() : core) + "%";
     }
+
     if (/^-?\d+\.$/.test(s) || s === "0.") return s;
+
     const n = Number(s);
     if (Number.isFinite(n)) return trimTrailingZeros(String(n));
     return s;
   }
+
   if (typeof value === "number") return trimTrailingZeros(String(value));
   if (value && typeof value === "object" && value.percent)
     return formatExprPart(String(value.value) + "%");
+
   return String(value);
 }
 
 function buildExprForTop(seq) {
+  // Join tokens into a human-readable expression (e.g., "12 × 5 + 10%").
   let out = "";
   for (let i = 0; i < seq.length; i++) {
     const t = seq[i];
@@ -518,6 +605,7 @@ function buildExprForTop(seq) {
   return out.trim();
 }
 
+// Extract last binary operation for "repeat equals" (A op B, then '=' repeats op B).
 function extractLastOp(seq) {
   let lastOpIndex = -1;
   for (let i = seq.length - 2; i >= 1; i--) {
@@ -532,19 +620,23 @@ function extractLastOp(seq) {
   const rightVal = resolveRightOperand(leftVal, op, seq[lastOpIndex + 1]);
   return { op, right: rightVal };
 }
+
 function resolveNodeToNumber(node, left, op) {
   if (typeof node === "number") return node;
   if (node && node.percent) return resolveRightOperand(left, op, node);
   return 0;
 }
 
-// ------------------------------------
-// Equals
-// ------------------------------------
+/* ------------------------------------
+ * Equals
+ * ------------------------------------ */
+
 function doEquals() {
+  // Case 1: no pending operator — handle solitary percent or repeat "=".
   if (!operator) {
     const trimmed = currentValue.trim();
 
+    // Standalone percent: interpret as n/100.
     if (trimmed.endsWith("%")) {
       const n = Number(trimmed.slice(0, -1).trim());
       const result = n / 100;
@@ -567,6 +659,7 @@ function doEquals() {
       return;
     }
 
+    // Repeat equals: apply last binary op to the current display value.
     if (lastOperator !== null && lastOperand !== null) {
       const a = toNumberSafe(currentValue);
       const result = applyOp(a, lastOperator, lastOperand);
@@ -585,8 +678,8 @@ function doEquals() {
         return;
       }
       exprFrozen = exprText;
-      currentValue = toDisplayString(result); // история удалена — просто показываем результат
-      waitingForSecond = true;
+      currentValue = toDisplayString(result);
+      waitingForSecond = true; // iOS: result is ready; next digit will start a new entry.
       clearOpHighlight();
       showingResult = true;
       updateDisplay();
@@ -595,6 +688,7 @@ function doEquals() {
     return;
   }
 
+  // Case 2: pending operator — evaluate full token stream with precedence.
   pushCurrentAsToken();
 
   const exprText = buildExprForTop(tokens);
@@ -614,6 +708,7 @@ function doEquals() {
   const resultNumber = evalRes.value;
   exprFrozen = exprText;
 
+  // Prepare "repeat equals" info from the last binary op.
   const lastInfo = extractLastOp(tokens);
   if (lastInfo) {
     lastOperator = lastInfo.op;
@@ -632,12 +727,15 @@ function doEquals() {
   updateDisplay();
 }
 
-// ------------------------------------
-// Bottom line builder (live typing)
-// ------------------------------------
+/* ------------------------------------
+ * Bottom line builder (live typing)
+ * ------------------------------------ */
+
 function buildBottomText() {
+  // If no operator is selected, show the current entry only.
   if (!operator) return currentValue;
 
+  // Otherwise, render from tokens so intermediate states like "8 + 2 ×" are correct.
   const parts = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -647,6 +745,7 @@ function buildBottomText() {
   }
 
   if (waitingForSecond) {
+    // Just pressed an operator: ensure the visible operator matches the current one.
     if (parts.length && typeof tokens[tokens.length - 1] === "string") {
       parts[parts.length - 1] = OP_MAP[operator];
     } else {
@@ -655,6 +754,7 @@ function buildBottomText() {
     return parts.join(" ");
   }
 
+  // Typing the second operand; append live input formatting.
   parts.push(formatExprPart(currentValue));
   return parts.join(" ");
 }
@@ -667,15 +767,18 @@ function highlightOperator(op) {
     );
   });
 }
+
 function clearOpHighlight() {
   opButtons.forEach((btn) => btn.classList.remove("active-op"));
 }
 
-// ------------------------------------
-// Keyboard
-// ------------------------------------
+/* ------------------------------------
+ * Keyboard
+ * ------------------------------------ */
+
 function onKey(e) {
   const k = e.key;
+
   if (/^[0-9]$/.test(k)) {
     handleDigit(k);
     return;
@@ -725,15 +828,17 @@ function onKey(e) {
     e.preventDefault();
     return;
   }
-  /* удалено: 'h'/'H' для истории */
+  // History hotkeys removed — basic calculator only.
 }
 
-// ------------------------------------
-// Buttons
-// ------------------------------------
+/* ------------------------------------
+ * Buttons
+ * ------------------------------------ */
+
 buttonsEl.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
+
   const txt = btn.textContent.trim();
   const action = btn.dataset.action;
   const op = btn.dataset.op;
@@ -752,11 +857,12 @@ buttonsEl.addEventListener("click", (e) => {
   }
 });
 
-// ------------------------------------
-// Init
-// ------------------------------------
+/* ------------------------------------
+ * Init
+ * ------------------------------------ */
+
 (function init() {
-  // создаём абсолютный слой .fit, чтобы текст результата НЕ влиял на размеры
+  // Inject absolute .fit layer so text scaling never triggers reflow of the display.
   fitSpan = document.createElement("span");
   fitSpan.className = "fit";
   while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
@@ -765,7 +871,7 @@ buttonsEl.addEventListener("click", (e) => {
   updateDisplay();
   updateClearLabel();
 
-  // Подгон масштаба при ресайзе окна/смене ориентации
+  // Refit on resize/orientation changes. rAF avoids layout thrash.
   let rafId = null;
   const onResize = () => {
     if (rafId) cancelAnimationFrame(rafId);
