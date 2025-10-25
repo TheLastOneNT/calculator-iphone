@@ -1,4 +1,4 @@
-// === iPhone-like Calculator Logic (Stage 2, clean full file) ===
+// === iPhone-like Calculator Logic (Stage 2, clean full file, patched) ===
 
 // ------------------------------------
 // DOM
@@ -10,7 +10,7 @@ const buttonsEl = document.querySelector(".buttons");
 const clearBtn = document.querySelector('button[data-action="clear"]');
 const opButtons = Array.from(document.querySelectorAll("[data-op]"));
 
-// История (элементы могут отсутствовать в текущей разметке — учитываем это)
+// История (элементы могут отсутствовать — отложим активацию)
 const historyBtn = document.getElementById("historyBtn");
 const historyPanel = document.getElementById("historyPanel");
 const historyList = document.getElementById("historyList");
@@ -26,16 +26,20 @@ if (!displayEl || !buttonsEl) {
 // ------------------------------------
 // State
 // ------------------------------------
-let currentValue = "0"; // текущий ввод (строка, может оканчиваться на '%')
+let currentValue = "0"; // текущий ввод (строка, может быть "0.", "-0.", "10%")
 let operator = null; // 'add' | 'sub' | 'mul' | 'div' | null
 let waitingForSecond = false; // true => следующий ввод цифры начнёт новое число
-let exprFrozen = ""; // верхняя строка (фиксируется на '=' и при ошибке)
-let tokens = []; // токены выражения: [number|{percent}, 'op', ...]
+let exprFrozen = ""; // верхняя строка после '=' или ошибки
+let tokens = []; // токены выражения: числа / {percent} и операторы
 
 let lastOperator = null; // для повторного '='
 let lastOperand = null;
 
-const MAX_LEN = 12;
+// Показываем ли сейчас именно РЕЗУЛЬТАТ вычисления (в таком случае отрицательные без скобок)
+let showingResult = false;
+
+// Лимит длины вывода (подгонено под поведение iPhone: 0.66666666667)
+const MAX_LEN = 13;
 
 // ------------------------------------
 // Helpers / Tokens
@@ -52,7 +56,7 @@ function isPercentText(s) {
   return typeof s === "string" && s.trim().endsWith("%");
 }
 function toNumberSafe(s) {
-  if (s === "." || s === "-" || s === "-.") return 0;
+  if (s === "." || s === "-" || s === "-." || s === "0.") return 0;
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
@@ -64,14 +68,25 @@ function renderDisplay(text) {
   const t = String(text).trim();
   if (t === "Error") return t;
 
-  // процент с отрицанием → (-10%)
+  // Если это выражение (с пробелами или символами операторов), ничего не оборачиваем
+  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
+
+  // процент с отрицанием → (-10%) только для ручного ввода; результат в процентах мы как число показываем
   if (isPercentText(t)) {
     const core = t.slice(0, -1).trim();
-    if (core.startsWith("-")) return `(-${core.slice(1)}%)`;
+    if (core.startsWith("-")) {
+      // Ручной ввод процента остаётся в скобках
+      return `(-${core.slice(1)}%)`;
+    }
     return t;
   }
-  // обычное отрицательное → (-8), (-0.), и т.п.
-  if (/^-/.test(t)) return `(-${t.slice(1)})`;
+
+  // Отрицательные числа:
+  // - Если это результат вычисления (showingResult=true) → "-8"
+  // - Если это ручной ввод (showingResult=false) → "(-8)"
+  if (/^-/.test(t)) {
+    return showingResult ? t : `(-${t.slice(1)})`;
+  }
   return t;
 }
 
@@ -88,11 +103,12 @@ function updateExpressionLine() {
 function updateClearLabel() {
   if (!clearBtn) return;
   const hasPercent = isPercentText(currentValue);
-  const hasTyped = currentValue !== "0" || hasPercent;
+  const hasTyped =
+    currentValue !== "0" || hasPercent || /[.]/.test(currentValue);
   clearBtn.textContent = hasTyped ? "C" : "AC";
 }
 
-// ограничение длины
+// ограничение длины и форматирование
 function trimTrailingZeros(str) {
   if (!str.includes(".")) return str;
   let [i, f] = str.split(".");
@@ -102,20 +118,30 @@ function trimTrailingZeros(str) {
 }
 function toDisplayString(num) {
   if (!Number.isFinite(num)) return "Error";
+
+  // Сначала пробуем округление под лимит дробной части
   let s = String(num);
+
+  // Если уже помещается — нормализуем хвост нулей и выходим
   s = trimTrailingZeros(s);
   if (s.length <= MAX_LEN) return s;
+
   if (s.includes(".")) {
     const [i, f = ""] = s.split(".");
-    const free = Math.max(0, MAX_LEN - i.length - 1);
+    const free = Math.max(0, MAX_LEN - i.length - 1); // сколько дробных знаков можем показать
     if (free > 0) {
-      s = trimTrailingZeros(i + "." + f.slice(0, free));
+      // ДЕЛАЕМ ОКРУГЛЕНИЕ, а не усечение — поведение как у iPhone
+      s = Number(num).toFixed(free);
+      s = trimTrailingZeros(s);
       if (s.length <= MAX_LEN) return s;
     } else {
+      // Места под дробь нет — оставляем только целую часть, обрезав до лимита
       return i.slice(0, MAX_LEN);
     }
   }
-  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // для экспоненциальной формы
+
+  // В экспоненциальную форму, если всё ещё не влезает
+  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // для "e+NN"
   const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
   return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
@@ -124,31 +150,42 @@ function toDisplayString(num) {
 // ------------------------------------
 // Input
 // ------------------------------------
+function beginTyping() {
+  showingResult = false;
+  exprFrozen = "";
+}
+
 function inputDigit(d) {
   if (waitingForSecond) {
     currentValue = d;
     waitingForSecond = false;
-    exprFrozen = "";
+    beginTyping();
     updateDisplay();
     return;
   }
   if (currentValue.length >= MAX_LEN) return;
   currentValue = currentValue === "0" ? d : currentValue + d;
+  beginTyping();
   updateDisplay();
 }
 
 function inputDot() {
   if (isPercentText(currentValue)) return;
+
   if (waitingForSecond) {
     currentValue = "0.";
     waitingForSecond = false;
+    beginTyping();
     updateDisplay();
     return;
   }
-  if (!currentValue.includes(".")) {
-    currentValue += ".";
-    updateDisplay();
-  }
+
+  // уже есть точка — игнор
+  if (currentValue.includes(".")) return;
+
+  currentValue += ".";
+  beginTyping();
+  updateDisplay();
 }
 
 function handleDigit(d) {
@@ -159,6 +196,7 @@ function handleDigit(d) {
     tokens = [];
     lastOperator = null;
     lastOperand = null;
+    showingResult = false;
     exprFrozen = "";
     updateDisplay();
     return;
@@ -166,6 +204,7 @@ function handleDigit(d) {
   if (isPercentText(currentValue)) {
     currentValue = d;
     waitingForSecond = false;
+    beginTyping();
     updateDisplay();
     return;
   }
@@ -178,8 +217,19 @@ function handleAction(action, txt) {
     return;
   }
   if (action === "clear") {
-    if (clearBtn && clearBtn.textContent === "C") clearEntry();
-    else clearAll();
+    // iPhone-поведение:
+    // - если мы во втором операнде (operator!=null && !waitingForSecond) → удалить второй операнд, оставить "A op"
+    // - иначе обычный C/AC
+    if (operator && !waitingForSecond) {
+      currentValue = "0";
+      waitingForSecond = true; // возвращаемся к виду "A op"
+      showingResult = false;
+      exprFrozen = "";
+      updateDisplay();
+    } else {
+      if (clearBtn && clearBtn.textContent === "C") clearEntry();
+      else clearAll();
+    }
     return;
   }
   if (action !== "clear" && currentValue === "Error") return;
@@ -218,15 +268,18 @@ function clearAll() {
   tokens = [];
   lastOperator = null;
   lastOperand = null;
+  showingResult = false;
   exprFrozen = "";
   clearOpHighlight();
   updateDisplay();
 }
 
 function clearEntry() {
+  // Обычный C (когда не во втором операнде) — только текущий ввод
   currentValue = "0";
   lastOperator = null;
   lastOperand = null;
+  showingResult = false;
   exprFrozen = "";
   updateDisplay();
 }
@@ -240,6 +293,7 @@ function backspace() {
       tokens.pop();
     }
     clearOpHighlight();
+    showingResult = false;
     exprFrozen = "";
     updateDisplay();
     return;
@@ -247,28 +301,39 @@ function backspace() {
 
   if (currentValue.endsWith("%")) {
     currentValue = currentValue.slice(0, -1);
+    beginTyping();
     updateDisplay();
     return;
   }
   currentValue = currentValue.slice(0, -1);
   if (currentValue === "" || currentValue === "-") currentValue = "0";
+  beginTyping();
   updateDisplay();
 }
 
 function toggleSign() {
-  if (currentValue === "0") return;
+  // На 0 поведение — ничего не меняем (как в iPhone)
+  if (currentValue === "0" || currentValue === "0.") return;
+
   if (isPercentText(currentValue)) {
     const core = currentValue.slice(0, -1).trim();
     const flipped = core.startsWith("-") ? core.slice(1) : "-" + core;
     currentValue = flipped + "%";
     if (!operator) exprFrozen = "";
+    showingResult = false;
     updateDisplay();
     return;
   }
-  currentValue = currentValue.startsWith("-")
-    ? currentValue.slice(1)
-    : "-" + currentValue;
+
+  if (currentValue.startsWith("-")) {
+    currentValue = currentValue.slice(1);
+    if (currentValue === "0") currentValue = "0";
+  } else {
+    currentValue = "-" + currentValue;
+  }
   if (!operator) exprFrozen = "";
+  showingResult = false;
+  // нормализация "-0" → "0"
   if (currentValue === "-0") currentValue = "0";
   updateDisplay();
 }
@@ -283,12 +348,14 @@ function percent() {
       tokens.pop();
     }
     clearOpHighlight();
+    showingResult = false;
     updateDisplay();
     return;
   }
 
   if (!isPercentText(currentValue)) {
     currentValue = currentValue.trim() + "%";
+    showingResult = false;
     updateDisplay();
   }
   if (currentValue.length > MAX_LEN) {
@@ -303,6 +370,8 @@ function percent() {
 // Operators & tokens
 // ------------------------------------
 function setOperator(nextOp) {
+  showingResult = false;
+
   // смена оператора до ввода второго
   if (operator && waitingForSecond) {
     operator = nextOp;
@@ -365,7 +434,7 @@ function applyOp(a, op, b) {
   }
 }
 
-// правый операнд-процент согласно правилам
+// правый операнд-процент согласно правилам iPhone
 function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === "number") return rightNode;
   if (rightNode && rightNode.percent) {
@@ -436,15 +505,37 @@ function evaluateTokens(seq) {
   return { error: false, value: final };
 }
 
+// форматирование частей в live-строке и expr
 function formatExprPart(value) {
-  const s = String(value).trim();
-  if (s.endsWith("%")) {
-    const core = s.slice(0, -1).trim();
-    const n = Number(core);
-    return (Number.isFinite(n) ? n.toLocaleString() : core) + "%";
+  // Сохраняем ввод вида "0." / "-0." — важно для кейса K1/K2
+  if (typeof value === "string") {
+    const s = value.trim();
+
+    // Сырые проценты как текст
+    if (s.endsWith("%")) {
+      const core = s.slice(0, -1).trim();
+      const n = Number(core);
+      return (Number.isFinite(n) ? n.toLocaleString() : core) + "%";
+    }
+
+    // Если текущий ввод заканчивается на точку — показать как есть
+    if (/^-?\d+\.$/.test(s) || s === "0.") return s;
+
+    // Иначе обычная числовая форма
+    const n = Number(s);
+    if (Number.isFinite(n)) return trimTrailingZeros(String(n));
+    return s;
   }
-  const n = Number(s);
-  return Number.isFinite(n) ? n.toLocaleString() : s;
+
+  if (typeof value === "number") {
+    return trimTrailingZeros(String(value));
+  }
+
+  if (value && typeof value === "object" && value.percent) {
+    return formatExprPart(String(value.value) + "%");
+  }
+
+  return String(value);
 }
 
 function buildExprForTop(seq) {
@@ -497,6 +588,7 @@ function doEquals() {
         waitingForSecond = false;
         tokens = [];
         clearOpHighlight();
+        showingResult = false;
         updateDisplay();
         return;
       }
@@ -504,6 +596,7 @@ function doEquals() {
       exprFrozen = formatExprPart(n) + " %";
       lastOperator = null;
       lastOperand = null;
+      showingResult = true;
       updateDisplay();
       return;
     }
@@ -522,6 +615,7 @@ function doEquals() {
         waitingForSecond = false;
         tokens = [];
         clearOpHighlight();
+        showingResult = false;
         updateDisplay();
         return;
       }
@@ -530,6 +624,7 @@ function doEquals() {
       currentValue = toDisplayString(result);
       waitingForSecond = true; // как на iPhone
       clearOpHighlight();
+      showingResult = true;
       updateDisplay();
       return;
     }
@@ -548,6 +643,7 @@ function doEquals() {
     waitingForSecond = false;
     tokens = [];
     clearOpHighlight();
+    showingResult = false;
     updateDisplay();
     return;
   }
@@ -570,11 +666,12 @@ function doEquals() {
   waitingForSecond = true;
   tokens = [];
   clearOpHighlight();
+  showingResult = true;
   updateDisplay();
 }
 
 // ------------------------------------
-// History UI
+// History UI (отложено; не ломаем, если разметки нет)
 // ------------------------------------
 function pushHistory(expr, result) {
   history.unshift({ expr, result });
@@ -598,6 +695,7 @@ function renderHistory() {
       tokens = [];
       lastOperator = null;
       lastOperand = null;
+      showingResult = true;
       updateDisplay();
     });
     historyList.appendChild(li);
@@ -647,7 +745,7 @@ function buildBottomText() {
     return parts.join(" ");
   }
 
-  // Вводим следующий операнд
+  // Вводим следующий операнд (с сохранением "0.")
   parts.push(formatExprPart(currentValue));
   return parts.join(" ");
 }
