@@ -114,7 +114,7 @@ body {
   min-height: 1.05em; /* keeps height constant even with absolute child */
 }
 
-/* Scaled text layer (injected by script.js). Absolute = no reflow when scaling. */
+/* Scaled text layer (injected by view.js). Absolute = no reflow when scaling. */
 .display .fit {
   position: absolute;
   right: 0;

@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Mobile dark theme address bar color -->
+    <!--
+      iPhone-like Calculator (modular architecture)
+      - Clean, accessible markup
+      - ES Modules entry at /src/index.js
+      - No inline scripts/styles (separation of concerns)
+    -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-
     <title>iPhone Calculator</title>
 
-    <!-- Font performance: establish early connection to font CDN -->
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Typeface used for keypad labels; UI uses SF fallback across platforms -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap"
       rel="stylesheet"
@@ -18,28 +20,26 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <!-- Single root calculator region for AT; logic/UI are managed by script.js -->
     <main class="calc" aria-label="Calculator">
+      <!-- Display -->
       <div class="display-wrap">
-        <!-- Announce the full expression politely when it changes -->
-        <div class="expr" aria-live="polite" aria-atomic="true"></div>
-
-        <!-- The numeric output is right-aligned; text scaling is handled by script.js -->
+        <!-- Expression (top line). aria-live announces changes non-intrusively. -->
+        <div class="expr" aria-live="polite"></div>
+        <!-- Result (bottom line). A .fit layer is injected by view.js for scaling. -->
         <div class="display">0</div>
       </div>
 
-      <!-- Logical keypad group; each button exposes its keyboard shortcut -->
-      <div class="buttons" aria-label="Keypad" role="group">
+      <!-- Keypad 4×5 -->
+      <div class="buttons" aria-label="Keypad">
         <!-- row 1 -->
         <button
           type="button"
           data-action="backspace"
-          class="icon-btn"
           aria-label="Backspace"
+          class="icon-btn"
           title="Backspace"
-          aria-keyshortcuts="Backspace"
         >
-          <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
             <path d="M8 24 L18 14 L18 34 Z" fill="currentColor" />
             <rect
               x="18"
@@ -54,34 +54,24 @@
             />
           </svg>
         </button>
-        <button type="button" data-action="clear" aria-keyshortcuts="Escape">
-          AC
-        </button>
-        <button type="button" data-action="percent" aria-keyshortcuts="%">
-          %
-        </button>
-        <button type="button" data-op="divide" aria-keyshortcuts="/">÷</button>
-
+        <button type="button" data-action="clear">AC</button>
+        <button type="button" data-action="percent">%</button>
+        <button type="button" data-op="divide">÷</button>
         <!-- row 2 -->
-        <button type="button" aria-keyshortcuts="7">7</button>
-        <button type="button" aria-keyshortcuts="8">8</button>
-        <button type="button" aria-keyshortcuts="9">9</button>
-        <button type="button" data-op="multiply" aria-keyshortcuts="*">
-          ×
-        </button>
-
+        <button type="button">7</button>
+        <button type="button">8</button>
+        <button type="button">9</button>
+        <button type="button" data-op="multiply">×</button>
         <!-- row 3 -->
-        <button type="button" aria-keyshortcuts="4">4</button>
-        <button type="button" aria-keyshortcuts="5">5</button>
-        <button type="button" aria-keyshortcuts="6">6</button>
-        <button type="button" data-op="minus" aria-keyshortcuts="-">−</button>
-
+        <button type="button">4</button>
+        <button type="button">5</button>
+        <button type="button">6</button>
+        <button type="button" data-op="minus">−</button>
         <!-- row 4 -->
-        <button type="button" aria-keyshortcuts="1">1</button>
-        <button type="button" aria-keyshortcuts="2">2</button>
-        <button type="button" aria-keyshortcuts="3">3</button>
-        <button type="button" data-op="plus" aria-keyshortcuts="+">+</button>
-
+        <button type="button">1</button>
+        <button type="button">2</button>
+        <button type="button">3</button>
+        <button type="button" data-op="plus">+</button>
         <!-- row 5 -->
         <button
           type="button"
@@ -89,9 +79,8 @@
           class="icon-btn"
           aria-label="Plus/Minus"
           title="+/-"
-          aria-keyshortcuts="Shift+_"
         >
-          <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
             <path
               d="M10 12 h11 M15.5 6.5 v11"
               stroke="currentColor"
@@ -113,16 +102,13 @@
           </svg>
         </button>
 
-        <button type="button" aria-keyshortcuts="0">0</button>
-        <button type="button" data-action="dot" aria-keyshortcuts=". ,">
-          .
-        </button>
-        <button type="button" data-action="equal" aria-keyshortcuts="= Enter">
-          =
-        </button>
+        <button type="button">0</button>
+        <button type="button" data-action="dot">.</button>
+        <button type="button" data-action="equal">=</button>
       </div>
     </main>
 
-    <script src="./script.js" defer></script>
+    <!-- ES module bootstrap -->
+    <script type="module" src="./src/index.js"></script>
   </body>
 </html>
