@@ -48,17 +48,17 @@ body {
   --expr-fg: #d4d4d2;
 
   /* дисплей */
-  --display-font-max: 68px; /* базовый размер числа (верхняя граница clamp) */
+  --display-font-max: 68px; /* базовый размер числа */
   --display-font-min: 40px; /* нижняя граница clamp */
 }
 
 /* ===== CONTAINER ===== */
 .calc {
   width: min(92vw, 420px);
+  max-width: 420px; /* страховка от переполнений */
   display: grid;
   grid-template-rows: auto 1fr;
   gap: var(--gap);
-  max-width: 420px; /* страховка от переполнений */
   overflow: hidden; /* на всякий случай отрубим влияние внутренних overflow */
 }
 

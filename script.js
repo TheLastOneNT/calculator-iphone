@@ -1,4 +1,4 @@
-// === iPhone-like Calculator Logic (Stage 2, clean full file, patched: Undefined + static display) ===
+// === iPhone-like Calculator Logic (Stage 2, clean full file, trimmed: no history, no extra modes) ===
 
 // ------------------------------------
 // DOM
@@ -11,15 +11,6 @@ const clearBtn = document.querySelector('button[data-action="clear"]');
 const opButtons = Array.from(document.querySelectorAll("[data-op]"));
 // слой для масштабирования текста результата
 let fitSpan = null;
-
-// История (элементы могут отсутствовать — отложим активацию)
-const historyBtn = document.getElementById("historyBtn");
-const historyPanel = document.getElementById("historyPanel");
-const historyList = document.getElementById("historyList");
-const historyClear = document.getElementById("historyClear");
-
-const HISTORY_LIMIT = 10;
-const history = [];
 
 if (!displayEl || !buttonsEl) {
   throw new Error("Missing .display or .buttons in DOM");
@@ -91,7 +82,7 @@ function fitDisplayText() {
   let scale = cw / sw; // только уменьшение
   if (!Number.isFinite(scale) || scale <= 0) scale = 1;
   if (scale > 1) scale = 1; // не увеличиваем
-  const MIN_SCALE = 0.5; // нижний предел (на iPhone ещё чуть меньше, но так читабельнее)
+  const MIN_SCALE = 0.5; // нижний предел для читабельности
   if (scale < MIN_SCALE) scale = MIN_SCALE;
 
   fitSpan.style.transform = `scale(${scale})`;
@@ -594,8 +585,7 @@ function doEquals() {
         return;
       }
       exprFrozen = exprText;
-      pushHistory(exprText, toDisplayString(result));
-      currentValue = toDisplayString(result);
+      currentValue = toDisplayString(result); // история удалена — просто показываем результат
       waitingForSecond = true;
       clearOpHighlight();
       showingResult = true;
@@ -623,7 +613,6 @@ function doEquals() {
 
   const resultNumber = evalRes.value;
   exprFrozen = exprText;
-  pushHistory(exprText, toDisplayString(resultNumber));
 
   const lastInfo = extractLastOp(tokens);
   if (lastInfo) {
@@ -642,55 +631,6 @@ function doEquals() {
   showingResult = true;
   updateDisplay();
 }
-
-// ------------------------------------
-// History UI (если есть разметка)
-// ------------------------------------
-function pushHistory(expr, result) {
-  history.unshift({ expr, result });
-  if (history.length > HISTORY_LIMIT) history.length = HISTORY_LIMIT;
-  renderHistory();
-}
-function renderHistory() {
-  if (!historyList) return;
-  historyList.innerHTML = "";
-  history.forEach(({ expr, result }) => {
-    const li = document.createElement("li");
-    li.className = "hist-item";
-    li.tabIndex = 0;
-    li.setAttribute("role", "button");
-    li.setAttribute("aria-label", `${expr} equals ${result}`);
-    li.innerHTML = `<div class="h-expr">${expr}</div><div class="h-res">= ${result}</div>`;
-    li.addEventListener("click", () => {
-      currentValue = result;
-      operator = null;
-      waitingForSecond = true;
-      tokens = [];
-      lastOperator = null;
-      lastOperand = null;
-      showingResult = true;
-      updateDisplay();
-    });
-    historyList.appendChild(li);
-  });
-}
-function toggleHistory(force) {
-  if (!historyPanel || !historyBtn) return;
-  const willOpen =
-    typeof force === "boolean" ? force : historyPanel.hasAttribute("hidden");
-  if (willOpen) {
-    historyPanel.removeAttribute("hidden");
-    historyBtn.setAttribute("aria-expanded", "true");
-  } else {
-    historyPanel.setAttribute("hidden", "");
-    historyBtn.setAttribute("aria-expanded", "false");
-  }
-}
-historyBtn?.addEventListener("click", () => toggleHistory());
-historyClear?.addEventListener("click", () => {
-  history.length = 0;
-  renderHistory();
-});
 
 // ------------------------------------
 // Bottom line builder (live typing)
@@ -785,11 +725,7 @@ function onKey(e) {
     e.preventDefault();
     return;
   }
-  if (k === "h" || k === "H") {
-    toggleHistory();
-    e.preventDefault();
-    return;
-  }
+  /* удалено: 'h'/'H' для истории */
 }
 
 // ------------------------------------
@@ -823,7 +759,6 @@ buttonsEl.addEventListener("click", (e) => {
   // создаём абсолютный слой .fit, чтобы текст результата НЕ влиял на размеры
   fitSpan = document.createElement("span");
   fitSpan.className = "fit";
-  // перенесём имеющийся текст внутрь .fit
   while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
   displayEl.appendChild(fitSpan);
 
