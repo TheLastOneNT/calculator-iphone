@@ -1,4 +1,4 @@
-// === iPhone-like Calculator Logic (Stage 2, clean full file, patched) ===
+// === iPhone-like Calculator Logic (Stage 2, clean full file, patched: Undefined) ===
 
 // ------------------------------------
 // DOM
@@ -41,6 +41,9 @@ let showingResult = false;
 // Лимит длины вывода (подгонено под поведение iPhone: 0.66666666667)
 const MAX_LEN = 13;
 
+// Строка для некорректных операций
+const UNDEF = "Undefined";
+
 // ------------------------------------
 // Helpers / Tokens
 // ------------------------------------
@@ -66,7 +69,7 @@ function toNumberSafe(s) {
 // ------------------------------------
 function renderDisplay(text) {
   const t = String(text).trim();
-  if (t === "Error") return t;
+  if (t === UNDEF) return t;
 
   // Если это выражение (с пробелами или символами операторов), ничего не оборачиваем
   if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
@@ -117,7 +120,7 @@ function trimTrailingZeros(str) {
   return f.length ? i + "." + f : i;
 }
 function toDisplayString(num) {
-  if (!Number.isFinite(num)) return "Error";
+  if (!Number.isFinite(num)) return UNDEF;
 
   // Сначала пробуем округление под лимит дробной части
   let s = String(num);
@@ -130,7 +133,7 @@ function toDisplayString(num) {
     const [i, f = ""] = s.split(".");
     const free = Math.max(0, MAX_LEN - i.length - 1); // сколько дробных знаков можем показать
     if (free > 0) {
-      // ДЕЛАЕМ ОКРУГЛЕНИЕ, а не усечение — поведение как у iPhone
+      // Округление (как у iPhone)
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
       if (s.length <= MAX_LEN) return s;
@@ -189,7 +192,7 @@ function inputDot() {
 }
 
 function handleDigit(d) {
-  if (currentValue === "Error") {
+  if (currentValue === UNDEF) {
     currentValue = d;
     operator = null;
     waitingForSecond = false;
@@ -232,7 +235,7 @@ function handleAction(action, txt) {
     }
     return;
   }
-  if (action !== "clear" && currentValue === "Error") return;
+  if (action !== "clear" && currentValue === UNDEF) return;
   if (action === "equal" || action === "equals") {
     doEquals();
     return;
@@ -252,7 +255,7 @@ function handleAction(action, txt) {
 }
 
 function handleOperator(opAttr) {
-  if (currentValue === "Error") return;
+  if (currentValue === UNDEF) return;
   const nextOp = OP_FROM_ATTR[opAttr];
   if (!nextOp) return;
   setOperator(nextOp);
@@ -583,7 +586,7 @@ function doEquals() {
       const n = Number(trimmed.slice(0, -1).trim());
       const result = n / 100;
       if (!Number.isFinite(result)) {
-        currentValue = "Error";
+        currentValue = UNDEF;
         operator = null;
         waitingForSecond = false;
         tokens = [];
@@ -610,7 +613,7 @@ function doEquals() {
       } ${formatExprPart(lastOperand)}`;
       if (!Number.isFinite(result)) {
         exprFrozen = exprText;
-        currentValue = "Error";
+        currentValue = UNDEF;
         operator = null;
         waitingForSecond = false;
         tokens = [];
@@ -638,7 +641,7 @@ function doEquals() {
   const evalRes = evaluateTokens(tokens);
   if (evalRes.error) {
     exprFrozen = exprText;
-    currentValue = "Error";
+    currentValue = UNDEF;
     operator = null;
     waitingForSecond = false;
     tokens = [];
