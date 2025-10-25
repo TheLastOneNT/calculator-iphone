@@ -1,4 +1,4 @@
-// === iPhone-like Calculator Logic (Stage 2, clean full file, patched: Undefined) ===
+// === iPhone-like Calculator Logic (Stage 2, clean full file, patched: Undefined + static display) ===
 
 // ------------------------------------
 // DOM
@@ -9,6 +9,8 @@ const displayEl = document.querySelector(".display");
 const buttonsEl = document.querySelector(".buttons");
 const clearBtn = document.querySelector('button[data-action="clear"]');
 const opButtons = Array.from(document.querySelectorAll("[data-op]"));
+// слой для масштабирования текста результата
+let fitSpan = null;
 
 // История (элементы могут отсутствовать — отложим активацию)
 const historyBtn = document.getElementById("historyBtn");
@@ -26,22 +28,17 @@ if (!displayEl || !buttonsEl) {
 // ------------------------------------
 // State
 // ------------------------------------
-let currentValue = "0"; // текущий ввод (строка, может быть "0.", "-0.", "10%")
+let currentValue = "0";
 let operator = null; // 'add' | 'sub' | 'mul' | 'div' | null
-let waitingForSecond = false; // true => следующий ввод цифры начнёт новое число
-let exprFrozen = ""; // верхняя строка после '=' или ошибки
-let tokens = []; // токены выражения: числа / {percent} и операторы
+let waitingForSecond = false;
+let exprFrozen = "";
+let tokens = [];
 
-let lastOperator = null; // для повторного '='
+let lastOperator = null;
 let lastOperand = null;
-
-// Показываем ли сейчас именно РЕЗУЛЬТАТ вычисления (в таком случае отрицательные без скобок)
 let showingResult = false;
 
-// Лимит длины вывода (подгонено под поведение iPhone: 0.66666666667)
 const MAX_LEN = 13;
-
-// Строка для некорректных операций
 const UNDEF = "Undefined";
 
 // ------------------------------------
@@ -70,33 +67,48 @@ function toNumberSafe(s) {
 function renderDisplay(text) {
   const t = String(text).trim();
   if (t === UNDEF) return t;
-
-  // Если это выражение (с пробелами или символами операторов), ничего не оборачиваем
-  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
-
-  // процент с отрицанием → (-10%) только для ручного ввода; результат в процентах мы как число показываем
+  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t; // выражение в live-строке
   if (isPercentText(t)) {
     const core = t.slice(0, -1).trim();
-    if (core.startsWith("-")) {
-      // Ручной ввод процента остаётся в скобках
-      return `(-${core.slice(1)}%)`;
-    }
+    if (core.startsWith("-")) return `(-${core.slice(1)}%)`;
     return t;
   }
-
-  // Отрицательные числа:
-  // - Если это результат вычисления (showingResult=true) → "-8"
-  // - Если это ручной ввод (showingResult=false) → "(-8)"
-  if (/^-/.test(t)) {
-    return showingResult ? t : `(-${t.slice(1)})`;
-  }
+  if (/^-/.test(t)) return showingResult ? t : `(-${t.slice(1)})`;
   return t;
 }
 
+// Масштабируем только текст результата. Абсолютное позиционирование .fit гарантирует нулевое влияние на макет.
+function fitDisplayText() {
+  if (!fitSpan) return;
+
+  // сброс масштаба перед измерением
+  fitSpan.style.transform = "scale(1)";
+
+  const cw = displayEl.clientWidth; // доступная ширина контейнера
+  const sw = fitSpan.scrollWidth; // естественная ширина текста
+  if (sw <= 0 || cw <= 0) return;
+
+  let scale = cw / sw; // только уменьшение
+  if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+  if (scale > 1) scale = 1; // не увеличиваем
+  const MIN_SCALE = 0.5; // нижний предел (на iPhone ещё чуть меньше, но так читабельнее)
+  if (scale < MIN_SCALE) scale = MIN_SCALE;
+
+  fitSpan.style.transform = `scale(${scale})`;
+}
+
 function updateDisplay() {
-  displayEl.textContent = renderDisplay(buildBottomText());
+  const txt = renderDisplay(buildBottomText());
+  if (fitSpan) {
+    fitSpan.textContent = txt;
+  } else {
+    displayEl.textContent = txt;
+  }
   updateClearLabel();
   updateExpressionLine();
+
+  // подгоняем масштаб в конце, чтобы текст гарантированно помещался
+  fitDisplayText();
 }
 
 function updateExpressionLine() {
@@ -122,29 +134,23 @@ function trimTrailingZeros(str) {
 function toDisplayString(num) {
   if (!Number.isFinite(num)) return UNDEF;
 
-  // Сначала пробуем округление под лимит дробной части
   let s = String(num);
-
-  // Если уже помещается — нормализуем хвост нулей и выходим
   s = trimTrailingZeros(s);
   if (s.length <= MAX_LEN) return s;
 
   if (s.includes(".")) {
     const [i, f = ""] = s.split(".");
-    const free = Math.max(0, MAX_LEN - i.length - 1); // сколько дробных знаков можем показать
+    const free = Math.max(0, MAX_LEN - i.length - 1);
     if (free > 0) {
-      // Округление (как у iPhone)
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
       if (s.length <= MAX_LEN) return s;
     } else {
-      // Места под дробь нет — оставляем только целую часть, обрезав до лимита
       return i.slice(0, MAX_LEN);
     }
   }
 
-  // В экспоненциальную форму, если всё ещё не влезает
-  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // для "e+NN"
+  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // для e+NN
   const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
   return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
@@ -182,8 +188,6 @@ function inputDot() {
     updateDisplay();
     return;
   }
-
-  // уже есть точка — игнор
   if (currentValue.includes(".")) return;
 
   currentValue += ".";
@@ -220,12 +224,9 @@ function handleAction(action, txt) {
     return;
   }
   if (action === "clear") {
-    // iPhone-поведение:
-    // - если мы во втором операнде (operator!=null && !waitingForSecond) → удалить второй операнд, оставить "A op"
-    // - иначе обычный C/AC
     if (operator && !waitingForSecond) {
       currentValue = "0";
-      waitingForSecond = true; // возвращаемся к виду "A op"
+      waitingForSecond = true;
       showingResult = false;
       exprFrozen = "";
       updateDisplay();
@@ -278,7 +279,6 @@ function clearAll() {
 }
 
 function clearEntry() {
-  // Обычный C (когда не во втором операнде) — только текущий ввод
   currentValue = "0";
   lastOperator = null;
   lastOperand = null;
@@ -288,7 +288,6 @@ function clearEntry() {
 }
 
 function backspace() {
-  // Если только что выбрали оператор — удаляем оператор (как на iPhone)
   if (waitingForSecond) {
     waitingForSecond = false;
     operator = null;
@@ -301,7 +300,6 @@ function backspace() {
     updateDisplay();
     return;
   }
-
   if (currentValue.endsWith("%")) {
     currentValue = currentValue.slice(0, -1);
     beginTyping();
@@ -315,7 +313,6 @@ function backspace() {
 }
 
 function toggleSign() {
-  // На 0 поведение — ничего не меняем (как в iPhone)
   if (currentValue === "0" || currentValue === "0.") return;
 
   if (isPercentText(currentValue)) {
@@ -336,13 +333,11 @@ function toggleSign() {
   }
   if (!operator) exprFrozen = "";
   showingResult = false;
-  // нормализация "-0" → "0"
   if (currentValue === "-0") currentValue = "0";
   updateDisplay();
 }
 
 function percent() {
-  // Если оператор выбран и второй операнд ещё не начат — трактуем как A%
   if (operator && waitingForSecond) {
     currentValue = String(peekLastNumberToken() ?? 0) + "%";
     operator = null;
@@ -375,7 +370,6 @@ function percent() {
 function setOperator(nextOp) {
   showingResult = false;
 
-  // смена оператора до ввода второго
   if (operator && waitingForSecond) {
     operator = nextOp;
     if (tokens.length && typeof tokens[tokens.length - 1] === "string") {
@@ -386,7 +380,6 @@ function setOperator(nextOp) {
     return;
   }
 
-  // пушим текущее число в токены
   if (!operator || !waitingForSecond) {
     pushCurrentAsToken();
   }
@@ -437,7 +430,6 @@ function applyOp(a, op, b) {
   }
 }
 
-// правый операнд-процент согласно правилам iPhone
 function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === "number") return rightNode;
   if (rightNode && rightNode.percent) {
@@ -454,7 +446,6 @@ function evaluateTokens(seq) {
   const ops = [];
   let expectNumber = true;
 
-  // разбор токенов
   for (let i = 0; i < seq.length; i++) {
     const t = seq[i];
     if (expectNumber) {
@@ -467,10 +458,8 @@ function evaluateTokens(seq) {
       expectNumber = true;
     }
   }
-  // обрезаем висящий оператор
   if (ops.length === values.length) ops.pop();
 
-  // проход 1: × / ÷
   for (let i = 0; i < ops.length; ) {
     const op = ops[i];
     if (op === "mul" || op === "div") {
@@ -488,7 +477,6 @@ function evaluateTokens(seq) {
     }
   }
 
-  // проход 2: + / −
   while (ops.length) {
     const op = ops.shift();
     const leftVal =
@@ -508,36 +496,23 @@ function evaluateTokens(seq) {
   return { error: false, value: final };
 }
 
-// форматирование частей в live-строке и expr
+// форматирование частей
 function formatExprPart(value) {
-  // Сохраняем ввод вида "0." / "-0." — важно для кейса K1/K2
   if (typeof value === "string") {
     const s = value.trim();
-
-    // Сырые проценты как текст
     if (s.endsWith("%")) {
       const core = s.slice(0, -1).trim();
       const n = Number(core);
       return (Number.isFinite(n) ? n.toLocaleString() : core) + "%";
     }
-
-    // Если текущий ввод заканчивается на точку — показать как есть
     if (/^-?\d+\.$/.test(s) || s === "0.") return s;
-
-    // Иначе обычная числовая форма
     const n = Number(s);
     if (Number.isFinite(n)) return trimTrailingZeros(String(n));
     return s;
   }
-
-  if (typeof value === "number") {
-    return trimTrailingZeros(String(value));
-  }
-
-  if (value && typeof value === "object" && value.percent) {
+  if (typeof value === "number") return trimTrailingZeros(String(value));
+  if (value && typeof value === "object" && value.percent)
     return formatExprPart(String(value.value) + "%");
-  }
-
   return String(value);
 }
 
@@ -552,7 +527,6 @@ function buildExprForTop(seq) {
   return out.trim();
 }
 
-// Для повторного '=' — достаём последнюю бинарную операцию и её правый операнд
 function extractLastOp(seq) {
   let lastOpIndex = -1;
   for (let i = seq.length - 2; i >= 1; i--) {
@@ -577,11 +551,9 @@ function resolveNodeToNumber(node, left, op) {
 // Equals
 // ------------------------------------
 function doEquals() {
-  // Нет оператора: одиночный % или повтор '='
   if (!operator) {
     const trimmed = currentValue.trim();
 
-    // отдельный % → перевод в дробь (n/100)
     if (trimmed.endsWith("%")) {
       const n = Number(trimmed.slice(0, -1).trim());
       const result = n / 100;
@@ -604,7 +576,6 @@ function doEquals() {
       return;
     }
 
-    // повтор '='
     if (lastOperator !== null && lastOperand !== null) {
       const a = toNumberSafe(currentValue);
       const result = applyOp(a, lastOperator, lastOperand);
@@ -625,7 +596,7 @@ function doEquals() {
       exprFrozen = exprText;
       pushHistory(exprText, toDisplayString(result));
       currentValue = toDisplayString(result);
-      waitingForSecond = true; // как на iPhone
+      waitingForSecond = true;
       clearOpHighlight();
       showingResult = true;
       updateDisplay();
@@ -634,7 +605,6 @@ function doEquals() {
     return;
   }
 
-  // Есть ожидающий оператор — завершаем токены и считаем с приоритетом
   pushCurrentAsToken();
 
   const exprText = buildExprForTop(tokens);
@@ -674,7 +644,7 @@ function doEquals() {
 }
 
 // ------------------------------------
-// History UI (отложено; не ломаем, если разметки нет)
+// History UI (если есть разметка)
 // ------------------------------------
 function pushHistory(expr, result) {
   history.unshift({ expr, result });
@@ -726,10 +696,8 @@ historyClear?.addEventListener("click", () => {
 // Bottom line builder (live typing)
 // ------------------------------------
 function buildBottomText() {
-  // Если оператор не выбран — показываем текущий ввод
   if (!operator) return currentValue;
 
-  // Рендерим из tokens, чтобы состояния типа "8 + 2 ×" были корректными
   const parts = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -739,7 +707,6 @@ function buildBottomText() {
   }
 
   if (waitingForSecond) {
-    // Только что нажали оператор — гарантируем показ текущего оператора
     if (parts.length && typeof tokens[tokens.length - 1] === "string") {
       parts[parts.length - 1] = OP_MAP[operator];
     } else {
@@ -748,7 +715,6 @@ function buildBottomText() {
     return parts.join(" ");
   }
 
-  // Вводим следующий операнд (с сохранением "0.")
   parts.push(formatExprPart(currentValue));
   return parts.join(" ");
 }
@@ -854,6 +820,24 @@ buttonsEl.addEventListener("click", (e) => {
 // Init
 // ------------------------------------
 (function init() {
+  // создаём абсолютный слой .fit, чтобы текст результата НЕ влиял на размеры
+  fitSpan = document.createElement("span");
+  fitSpan.className = "fit";
+  // перенесём имеющийся текст внутрь .fit
+  while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
+  displayEl.appendChild(fitSpan);
+
   updateDisplay();
   updateClearLabel();
+
+  // Подгон масштаба при ресайзе окна/смене ориентации
+  let rafId = null;
+  const onResize = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      fitDisplayText();
+      rafId = null;
+    });
+  };
+  window.addEventListener("resize", onResize);
 })();

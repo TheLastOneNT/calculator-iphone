@@ -20,73 +20,99 @@ body {
   margin: 0;
   background: #000;
   color: #fff;
-  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
-    sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   display: grid;
   place-items: center;
 }
 
-/* ===== ТОКЕНЫ ===== */
+/* ===== TOKENS ===== */
 :root {
   --gap: clamp(10px, 2.8vw, 14px);
   --displayPad: clamp(16px, 4vw, 22px);
 
   --btnSize: 64px;
-  --btnFontDigit: calc(var(--btnSize) * 0.48); /* цифры */
-  --btnFontOp: calc(var(--btnSize) * 0.54); /* операторы крупнее */
-  --btnFontFunc: calc(var(--btnSize) * 0.46); /* функции почти как цифры */
+  --btnFontDigit: calc(var(--btnSize) * 0.48);
+  --btnFontOp: calc(var(--btnSize) * 0.54);
+  --btnFontFunc: calc(var(--btnSize) * 0.46);
 
-  /* ПАЛИТРА (не менять) */
-  --digit-bg: #1c1c1c; /* цифры, ±, . */
+  --digit-bg: #1c1c1c;
   --digit-fg: #ffffff;
 
-  --func-bg: #505050; /* AC, %, ⌫ — серый, светлее, чем у цифр */
+  --func-bg: #505050;
   --func-fg: #ffffff;
 
-  --op-bg: #ff9500; /* операторы */
+  --op-bg: #ff9500;
   --op-fg: #ffffff;
 
-  --expr-fg: #d4d4d2; /* строка выражения */
+  --expr-fg: #d4d4d2;
+
+  /* дисплей */
+  --display-font-max: 68px; /* базовый размер числа (верхняя граница clamp) */
+  --display-font-min: 40px; /* нижняя граница clamp */
 }
 
-/* ===== КОНТЕЙНЕР ===== */
+/* ===== CONTAINER ===== */
 .calc {
   width: min(92vw, 420px);
   display: grid;
   grid-template-rows: auto 1fr;
   gap: var(--gap);
+  max-width: 420px; /* страховка от переполнений */
+  overflow: hidden; /* на всякий случай отрубим влияние внутренних overflow */
 }
 
-/* ===== ДИСПЛЕЙ ===== */
+/* ===== DISPLAY ===== */
 .display-wrap {
   background: #000;
   border-radius: 28px;
   padding: var(--displayPad);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: clamp(4px, 0.8vw, 8px);
 }
 
+/* верхняя строка: постоянная высота, выравнивание вправо */
 .expr {
   color: var(--expr-fg);
   font-size: clamp(14px, 2.6vw, 18px);
   line-height: 1.2;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 1.2em; /* резерв — исключает "прыжки" */
+  text-align: right;
 }
 
+/* нижний дисплей — фиксированная коробка; контент внутри абсолютно позиционирован */
 .display {
-  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
-    sans-serif;
-  font-size: clamp(40px, 10.5vw, 68px);
+  font-size: clamp(var(--display-font-min), 10.5vw, var(--display-font-max));
   line-height: 1.05;
   font-weight: 500;
   user-select: none;
+
+  position: relative; /* база для абсолютного .fit */
+  width: 100%;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden; /* НИЧЕГО не может вылезти наружу */
+  min-height: 1.05em; /* высота равна одной строке, даже если .fit абсолютен */
 }
 
-/* ===== КЛАВИАТУРА ===== */
+/* внутренний слой для текста результата:
+   абсолютное позиционирование = вообще не влияет на раскладку */
+.display .fit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-block;
+  transform-origin: right bottom; /* уменьшаем от правого края, как в iOS */
+  will-change: transform;
+}
+
+/* ===== KEYPAD ===== */
 .buttons {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -108,8 +134,8 @@ body {
 
   font-family: "Inter", "SF Pro Rounded", -apple-system, BlinkMacSystemFont,
     system-ui, sans-serif;
-  font-weight: 300; /* тоньше без потери читабельности */
-  font-variation-settings: "wght" 300; /* для variable-версии Inter */
+  font-weight: 300;
+  font-variation-settings: "wght" 300;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
@@ -119,7 +145,7 @@ body {
   transition: transform 0.06s ease, box-shadow 0.12s ease;
 }
 
-/* ФУНКЦИИ: AC, %, ⌫ — серые, белый текст */
+/* ФУНКЦИИ */
 button[data-action],
 button[aria-label="Backspace"] {
   background: var(--func-bg);
@@ -135,7 +161,7 @@ button[data-action="dot"] {
   font-size: var(--btnFontDigit);
 }
 
-/* ОПЕРАТОРЫ и = — оранжевые, самые крупные */
+/* ОПЕРАТОРЫ и = */
 button[data-op],
 button[data-action="equal"] {
   background: var(--op-bg);
@@ -143,9 +169,11 @@ button[data-action="equal"] {
   font-size: var(--btnFontOp);
 }
 
-/* Подсветка активного оператора (управляется из JS) */
+/* Подсветка активного оператора */
 button.active-op {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18) inset;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28) inset,
+    0 0 0 2px rgba(255, 255, 255, 0.18);
+  filter: brightness(1.08);
 }
 
 /* Нажатие / фокус */
@@ -157,37 +185,30 @@ button.active-op {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
-/* SVG-иконки (± как slash, ← delete и т.п.) */
+/* SVG-иконки */
 .icon-btn svg {
   width: 62%;
   height: 62%;
   display: block;
 }
-
 .icon-btn svg path,
 .icon-btn svg rect {
-  stroke-width: 1.8; /* было 2.2 — визуально ближе к iOS */
+  stroke-width: 1.8;
 }
 
-/* Оптический подъём контента внутри кнопки */
+/* Оптический подъём */
 .buttons > button > * {
   transform: translateY(-1px);
 }
 
-button.active-op {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28) inset,
-    0 0 0 2px rgba(255, 255, 255, 0.18);
-  filter: brightness(1.08);
-}
-
-/* Низкие экраны: поджать результат */
+/* Низкие экраны: максимум базовой высоты чуть меньше */
 @media (max-height: 740px) {
-  .display {
-    font-size: clamp(34px, 9.5vw, 60px);
+  :root {
+    --display-font-max: 60px;
   }
 }
 
-/* Доступность: если пользователь отключил анимацию — уберём микродвижения */
+/* Доступность */
 @media (prefers-reduced-motion: reduce) {
   .buttons > button {
     transition: none;
