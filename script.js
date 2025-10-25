@@ -5,6 +5,13 @@ const buttonsEl = document.querySelector(".buttons");
 const clearBtn = document.querySelector('button[data-action="clear"]');
 const opButtons = Array.from(document.querySelectorAll("[data-op]"));
 
+const historyBtn = document.getElementById("historyBtn");
+const historyPanel = document.getElementById("historyPanel");
+const historyList = document.getElementById("historyList");
+const historyClear = document.getElementById("historyClear");
+const HISTORY_LIMIT = 10;
+const history = [];
+
 if (!displayEl || !buttonsEl) {
   throw new Error("Missing .display or .buttons in DOM");
 }
@@ -39,10 +46,12 @@ buttonsEl.addEventListener("click", (e) => {
     handleDigit(txt);
     return;
   }
+
   if (action) {
     handleAction(action, txt);
     return;
   }
+
   if (op) {
     handleOperator(op);
     return;
@@ -85,7 +94,17 @@ function inputDot() {
 // ------- Handle functions ------- //
 
 function handleDigit(d) {
-  if (currentValue === "Error") return;
+  if (currentValue === "Error") {
+    currentValue = d;
+    firstOperand = null;
+    operator = null;
+    waitingForSecond = false;
+    lastOperator = null;
+    lastOperand = null;
+    exprFrozen = "";
+    updateDisplay();
+    return;
+  }
 
   if (currentValue.trim().endsWith("%")) {
     currentValue = d;
@@ -242,6 +261,7 @@ function doEquals() {
         operator = null;
         waitingForSecond = false;
         clearOpHighlight();
+        updateDisplay();
         return;
       }
       currentValue = toDisplayString(result);
@@ -262,6 +282,7 @@ function doEquals() {
         operator = null;
         waitingForSecond = false;
         clearOpHighlight();
+        updateDisplay();
         return;
       }
       currentValue = toDisplayString(result);
@@ -276,10 +297,7 @@ function doEquals() {
   }
 
   const a = firstOperand ?? 0;
-
-  if (waitingForSecond) {
-    return;
-  }
+  if (waitingForSecond) return;
 
   let b;
   if (currentValue.trim().endsWith("%")) {
@@ -296,15 +314,8 @@ function doEquals() {
     b = Number(currentValue);
   }
 
-  const shownB = currentValue.trim().endsWith("%") ? currentValue : String(b);
-
-  exprFrozen = `${formatExprPart(a)} ${opSymbol(operator)} ${formatExprPart(
-    shownB
-  )}`;
-
   logCompute("equals", a, operator, b);
   const result = compute(a, operator, b);
-
   if (!isFinite(result)) {
     currentValue = "Error";
     updateDisplay();
@@ -312,8 +323,16 @@ function doEquals() {
     operator = null;
     waitingForSecond = false;
     clearOpHighlight();
+    updateDisplay();
     return;
   }
+
+  const shownB = currentValue.trim().endsWith("%") ? currentValue : String(b);
+  const exprText = `${formatExprPart(a)} ${opSymbol(operator)} ${formatExprPart(
+    shownB
+  )}`;
+  exprFrozen = exprText;
+  pushHistory(exprText, toDisplayString(result));
 
   lastOperator = operator;
   lastOperand = b;
@@ -325,6 +344,54 @@ function doEquals() {
   clearOpHighlight();
   updateDisplay();
 }
+
+function pushHistory(expr, result) {
+  history.unshift({ expr, result });
+  if (history.length > HISTORY_LIMIT) history.length = HISTORY_LIMIT;
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!historyList) return;
+  historyList.innerHTML = "";
+  history.forEach(({ expr, result }, idx) => {
+    const li = document.createElement("li");
+    li.className = "hist-item";
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-label", `${expr} equals ${result}`);
+    li.innerHTML = `<div class="h-expr">${expr}</div><div class="h-res">= ${result}</div>`;
+    li.addEventListener("click", () => {
+      currentValue = result;
+      firstOperand = Number(result);
+      operator = null;
+      waitingForSecond = true;
+      lastOperator = null;
+      lastOperand = null;
+      updateDisplay();
+    });
+    historyList.appendChild(li);
+  });
+}
+
+function toggleHistory(force) {
+  if (!historyPanel || !historyBtn) return;
+  const willOpen =
+    typeof force === "boolean" ? force : historyPanel.hasAttribute("hidden");
+  if (willOpen) {
+    historyPanel.removeAttribute("hidden");
+    historyBtn.setAttribute("aria-expanded", "true");
+  } else {
+    historyPanel.setAttribute("hidden", "");
+    historyBtn.setAttribute("aria-expanded", "false");
+  }
+}
+
+historyBtn?.addEventListener("click", () => toggleHistory());
+historyClear?.addEventListener("click", () => {
+  history.length = 0;
+  renderHistory();
+});
 
 function toggleSign() {
   if (currentValue === "0") return;
@@ -350,6 +417,12 @@ function percent() {
     currentValue = currentValue.trim() + "%";
     updateDisplay();
   }
+  if (currentValue.length > MAX_LEN) {
+    currentValue = currentValue.slice(0, MAX_LEN);
+    if (!currentValue.endsWith("%"))
+      currentValue = currentValue.slice(0, -1) + "%";
+    updateDisplay();
+  }
 }
 
 // Remove zeros from the end of the fractional part of a number
@@ -362,18 +435,29 @@ function trimTrailingZeros(str) {
 }
 
 function toDisplayString(num) {
+  if (!isFinite(num)) return "Error";
   let s = String(num);
   s = trimTrailingZeros(s);
-  if (s.length > MAX_LEN) {
-    if (s.includes(".")) {
-      const [i, f = ""] = s.split(".");
-      const free = Math.max(0, MAX_LEN - (i.length + 1));
-      s = free > 0 ? i + "." + f.slice(0, free) : i.slice(0, MAX_LEN);
+  if (s.length <= MAX_LEN) return s;
+  if (s.includes(".")) {
+    const [i, f = ""] = s.split(".");
+    const free = Math.max(
+      0,
+      MAX_LEN - (i.startsWith("-") ? i.length : i.length) - 1
+    );
+    if (free > 0) {
+      s = trimTrailingZeros(i + "." + f.slice(0, free));
+      if (s.length <= MAX_LEN) return s;
     } else {
-      s = s.slice(0, MAX_LEN);
+      s = i.slice(0, MAX_LEN);
+      return s;
     }
   }
-  return s;
+  const abs = Math.abs(num);
+  const reserve = (num < 0 ? 1 : 0) + 6;
+  const digits = Math.max(0, MAX_LEN - reserve);
+  s = num.toExponential(Math.max(0, digits));
+  return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
 }
 
 function backspace() {
@@ -503,6 +587,12 @@ function onKey(e) {
 
   if (k === "%") {
     handleAction("percent", "%");
+    e.preventDefault();
+    return;
+  }
+
+  if (k === "h" || k === "H") {
+    toggleHistory();
     e.preventDefault();
     return;
   }
