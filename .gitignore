@@ -3,3 +3,8 @@ fonts/*.pkg
 fonts/*.zip
 fonts/*.otf
 fonts/*.ttf
+node_modules/
+dist/
+coverage/
+.vscode/
+.DS_Store
