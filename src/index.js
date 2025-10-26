@@ -11,27 +11,13 @@ render(state.currentValue);
 document.addEventListener('keydown', onKey);
 
 // ---------------------------------------------------------------------------
-// Prevent accidental zoom on iOS (double-tap / pinch) within the calculator
+// Prevent pinch-zoom on iOS within the calculator, but DO NOT block fast taps
 // ---------------------------------------------------------------------------
 
 const calcRoot = document.querySelector('.calc');
 
-// Block double-tap zoom (second tap within ~300ms)
-let lastTouchEnd = 0;
+// Block pinch-zoom (multi-touch move) inside calculator area
 if (calcRoot) {
-  calcRoot.addEventListener(
-    'touchend',
-    (e) => {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault(); // cancel the zoom
-      }
-      lastTouchEnd = now;
-    },
-    { passive: false }
-  );
-
-  // Block pinch-zoom (multi-touch move) inside calculator area
   calcRoot.addEventListener(
     'touchmove',
     (e) => {
@@ -41,30 +27,20 @@ if (calcRoot) {
     },
     { passive: false }
   );
-
-  // Safety: prevent dblclick-based zoom (not always fired on iOS, but harmless)
-  calcRoot.addEventListener(
-    'dblclick',
-    (e) => {
-      e.preventDefault();
-    },
-    { passive: false }
-  );
 }
 
-// Some iOS versions emit non-standard gesture events; prevent them globally
+// (Optional safety for older iOS gesture events)
 document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
 document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
 document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
 
 // ---------------------------------------------------------------------------
-// Delegate clicks on calculator buttons
+// Immediate input on pointerdown (no 300ms feel); swallow the subsequent click
 // ---------------------------------------------------------------------------
 
-buttonsEl.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
+let suppressClicksUntil = 0;
 
+function handleButton(btn) {
   const { action, op } = btn.dataset;
   const txt = btn.textContent.trim();
 
@@ -75,4 +51,34 @@ buttonsEl.addEventListener('click', (e) => {
   } else if (op) {
     onOperator(op);
   }
+}
+
+// Fire immediately on pointerdown (touch/pen/mouse)
+buttonsEl.addEventListener(
+  'pointerdown',
+  (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    // immediately handle the input
+    handleButton(btn);
+
+    // prevent text selection / native gestures, and mark to suppress the next click
+    e.preventDefault();
+    suppressClicksUntil = performance.now() + 80; // small window to swallow the synthetic click
+  },
+  { passive: false }
+);
+
+// Fallback: clicks (keyboard/mouse) — ignored if we just handled pointerdown
+buttonsEl.addEventListener('click', (e) => {
+  if (performance.now() < suppressClicksUntil) return; // swallow the synthetic click after pointerdown
+
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  handleButton(btn);
 });
+
+// ---------------------------------------------------------------------------
+// (existing) Keyboard mapping stays above
+// ---------------------------------------------------------------------------
