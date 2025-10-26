@@ -103,13 +103,12 @@ body {
 .display {
   font-size: clamp(
     var(--display-font-min),
-    max(10.5vw, calc(var(--btnSize) * 0.78)),
+    max(10.5vw, calc(var(--btnSize) * 0.8)),
     var(--display-font-max)
   );
   line-height: 1.05;
   font-weight: 500;
   user-select: none;
-
   position: relative;
   width: 100%;
   text-align: right;
@@ -267,6 +266,12 @@ button[data-action='sign'] svg {
 @media (max-height: 740px) {
   :root {
     --display-font-max: 82px;
+  }
+}
+
+@media (max-width: 480px) {
+  .display {
+    font-size: clamp(50px, calc(var(--btnSize) * 1.05), 88px);
   }
 }
 
