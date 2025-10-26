@@ -1,83 +1,32 @@
-// Formatting helpers: trimming, percent/negative rendering, expression parts.
-
-export function isPercentText(s) {
-  return typeof s === "string" && s.trim().endsWith("%");
-}
-
 export function trimTrailingZeros(str) {
-  if (!str.includes(".")) return str;
-  let [i, f] = str.split(".");
-  if (!f) return i;
-  f = f.replace(/0+$/, "");
-  return f.length ? i + "." + f : i;
+  if (!str.includes('.')) return str;
+  const [intPart, fracRaw = ''] = str.split('.');
+  if (!fracRaw) return intPart;
+  const frac = fracRaw.replace(/0+$/, '');
+  return frac.length ? `${intPart}.${frac}` : intPart;
 }
 
-export function toDisplayString(num, { MAX_LEN, UNDEF }) {
-  if (!Number.isFinite(num)) return UNDEF;
+export function toDisplayString(num, maxLen, UNDEF_LABEL = 'Undefined') {
+  if (!Number.isFinite(num)) return UNDEF_LABEL;
 
   let s = String(num);
   s = trimTrailingZeros(s);
-  if (s.length <= MAX_LEN) return s;
+  if (s.length <= maxLen) return s;
 
-  if (s.includes(".")) {
-    const [i, f = ""] = s.split(".");
-    const free = Math.max(0, MAX_LEN - i.length - 1);
+  if (s.includes('.')) {
+    const [intPart, frac = ''] = s.split('.');
+    const free = Math.max(0, maxLen - intPart.length - 1);
     if (free > 0) {
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
-      if (s.length <= MAX_LEN) return s;
+      if (s.length <= maxLen) return s;
     } else {
-      return i.slice(0, MAX_LEN);
+      return intPart.slice(0, maxLen);
     }
   }
 
-  const reserve = (s.startsWith("-") ? 1 : 0) + 6; // "e±NN"
-  const digits = Math.max(0, MAX_LEN - reserve);
+  const reserve = (s.startsWith('-') ? 1 : 0) + 6; // room for "e±NN"
+  const digits = Math.max(0, maxLen - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
-  return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
-}
-
-export function renderDisplay(text, { UNDEF }, showingResult) {
-  const t = String(text).trim();
-  if (t === UNDEF) return t;
-
-  // Live expression: operator glyph + spaces -> render as-is
-  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
-
-  // Percent literal: negative as (-10%)
-  if (isPercentText(t)) {
-    const core = t.slice(0, -1).trim();
-    if (core.startsWith("-")) return `(-${core.slice(1)}%)`;
-    return t;
-  }
-
-  // Negatives: while typing show parentheses; on result show plain -N
-  if (/^-/.test(t)) return showingResult ? t : `(-${t.slice(1)})`;
-
-  return t;
-}
-
-export function formatExprPart(value) {
-  // Preserve "0." / "-0." while typing.
-  if (typeof value === "string") {
-    const s = value.trim();
-
-    if (s.endsWith("%")) {
-      const core = s.slice(0, -1).trim();
-      const n = Number(core);
-      return (Number.isFinite(n) ? n.toLocaleString() : core) + "%";
-    }
-
-    if (/^-?\d+\.$/.test(s) || s === "0.") return s;
-
-    const n = Number(s);
-    if (Number.isFinite(n)) return trimTrailingZeros(String(n));
-    return s;
-  }
-
-  if (typeof value === "number") return trimTrailingZeros(String(value));
-  if (value && typeof value === "object" && value.percent)
-    return formatExprPart(String(value.value) + "%");
-
-  return String(value);
+  return s.length <= maxLen ? s : s.slice(0, maxLen);
 }
