@@ -1,3 +1,7 @@
+# iPhone Calculator (iOS 26 Design)
+
+🌐 [Live Demo](https://TheLastOneNT.github.io/calculator-iphone/)
+
 ## Development
 
 ```bash
