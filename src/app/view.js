@@ -1,7 +1,7 @@
-// View layer: DOM refs, rendering, event binding, fit-to-width scaling
+// view.js — DOM bindings + scaling layer; no business logic inside
 
-import { isPercentText, formatExprPart } from './format.js';
-import { MAX_LEN } from './config.js';
+import { renderDisplay } from './format.js';
+import { state } from './model.js';
 
 const exprEl = document.querySelector('.expr');
 const displayEl = document.querySelector('.display');
@@ -11,65 +11,31 @@ const opButtons = Array.from(document.querySelectorAll('[data-op]'));
 
 let fitSpan = null;
 
-export function init(controller) {
-  if (!displayEl || !buttonsEl) {
-    throw new Error('Missing .display or .buttons in DOM');
-  }
-
-  // Inject absolute .fit layer so scaling does not affect layout.
+// Inject absolute .fit layer so text scaling never triggers reflow.
+(function initDisplayLayer() {
   fitSpan = document.createElement('span');
   fitSpan.className = 'fit';
   while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
   displayEl.appendChild(fitSpan);
+})();
 
-  // Buttons
-  buttonsEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const txt = btn.textContent.trim();
-    const action = btn.dataset.action;
-    const op = btn.dataset.op;
-
-    if (/^[0-9]$/.test(txt)) return controller.onDigit(txt);
-    if (action) return controller.onAction(action, txt);
-    if (op) return controller.onOperator(op);
+export function render(bottomText) {
+  // bottom line
+  fitSpan.textContent = renderDisplay(bottomText, {
+    showingResult: state.showingResult,
   });
 
-  // Keyboard
-  document.addEventListener('keydown', controller.onKey);
+  // top line
+  exprEl.textContent = state.exprFrozen || '';
 
-  // First paint
-  controller._rerender();
-}
-
-export function update(model, bottomText) {
-  // Expression (top)
-  if (exprEl) exprEl.textContent = model.state.exprFrozen || '';
-
-  // Clear button label
-  if (clearBtn) {
-    const cv = model.state.currentValue;
-    const hasPercent = isPercentText(cv);
-    const hasTyped = cv !== '0' || hasPercent || /[.]/.test(cv);
-    clearBtn.textContent = hasTyped ? 'C' : 'AC';
-  }
-
-  // Bottom display (fit into width)
-  if (fitSpan) fitSpan.textContent = bottomText;
-  else displayEl.textContent = bottomText;
+  // "C" vs "AC" label, directly from state
+  const hasPercent =
+    typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%');
+  const hasTyped =
+    state.currentValue !== '0' || hasPercent || /[.]/.test(state.currentValue);
+  if (clearBtn) clearBtn.textContent = hasTyped ? 'C' : 'AC';
 
   fitDisplayText();
-}
-
-export function highlightOperator(currentOp, OP_FROM_ATTR) {
-  opButtons.forEach((btn) => {
-    const isActive = btn.dataset.op && OP_FROM_ATTR[btn.dataset.op] === currentOp;
-    btn.classList.toggle('active-op', isActive);
-  });
-}
-
-export function clearOpHighlight() {
-  opButtons.forEach((btn) => btn.classList.remove('active-op'));
 }
 
 function fitDisplayText() {
@@ -86,5 +52,25 @@ function fitDisplayText() {
   fitSpan.style.transform = `scale(${scale})`;
 }
 
-// helper export used by controller for formatting the top line
-export { formatExprPart };
+export function highlightOperator(op /* "add" | "sub" | "mul" | "div" */) {
+  opButtons.forEach((btn) => {
+    const map = { plus: 'add', minus: 'sub', multiply: 'mul', divide: 'div' };
+    btn.classList.toggle('active-op', map[btn.dataset.op] === op);
+  });
+}
+export function clearOpHighlight() {
+  opButtons.forEach((btn) => btn.classList.remove('active-op'));
+}
+
+// Refit on resize/orientation changes
+let rafId = null;
+window.addEventListener('resize', () => {
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => {
+    fitDisplayText();
+    rafId = null;
+  });
+});
+
+// Expose root elements for controller to bind
+export { buttonsEl };

@@ -1,4 +1,4 @@
-// Math engine: operator application, % resolution, precedence evaluation
+// math.js — pure arithmetic & token evaluation with iOS percent semantics
 
 export function applyOp(a, op, b) {
   switch (op) {
@@ -15,7 +15,12 @@ export function applyOp(a, op, b) {
   }
 }
 
-/** Resolve right operand that may be a percent node, iOS rules. */
+/**
+ * Resolve a right operand that might be a percent node,
+ * using iOS rules:
+ *  - For add/sub: right% is (left * right/100)
+ *  - For mul/div: right% is (right/100)
+ */
 export function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === 'number') return rightNode;
   if (rightNode && rightNode.percent) {
@@ -32,6 +37,7 @@ export function evaluateTokens(seq) {
   const ops = [];
   let expectNumber = true;
 
+  // tokenize (ignore trailing operator)
   for (let i = 0; i < seq.length; i++) {
     const t = seq[i];
     if (expectNumber) {
@@ -46,7 +52,7 @@ export function evaluateTokens(seq) {
   }
   if (ops.length === values.length) ops.pop();
 
-  // pass 1: × ÷
+  // pass 1: × / ÷
   for (let i = 0; i < ops.length; ) {
     const op = ops[i];
     if (op === 'mul' || op === 'div') {
@@ -59,10 +65,12 @@ export function evaluateTokens(seq) {
       if (!Number.isFinite(raw)) return { error: true };
       values.splice(i, 2, raw);
       ops.splice(i, 1);
-    } else i++;
+    } else {
+      i++;
+    }
   }
 
-  // pass 2: + −
+  // pass 2: + / −
   while (ops.length) {
     const op = ops.shift();
     const leftVal =
@@ -78,4 +86,26 @@ export function evaluateTokens(seq) {
   const final =
     typeof values[0] === 'number' ? values[0] : resolveRightOperand(0, 'add', values[0]);
   return { error: false, value: final };
+}
+
+/**
+ * Extract last binary operation and its resolved right operand.
+ * Used for "repeat equals" behavior and covered by tests.
+ */
+export function extractLastOp(seq) {
+  let lastOpIndex = -1;
+  for (let i = seq.length - 2; i >= 1; i--) {
+    if (typeof seq[i] === 'string') {
+      lastOpIndex = i;
+      break;
+    }
+  }
+  if (lastOpIndex === -1) return null;
+
+  const leftNode = seq[lastOpIndex - 1];
+  const op = seq[lastOpIndex];
+  const leftVal =
+    typeof leftNode === 'number' ? leftNode : resolveRightOperand(0, 'add', leftNode);
+  const rightVal = resolveRightOperand(leftVal, op, seq[lastOpIndex + 1]);
+  return { op, right: rightVal };
 }

@@ -1,10 +1,14 @@
-// Formatting & presentation helpers (pure functions)
+// format.js — pure presentation helpers shared by controller and tests
 
-/** Detects a percent literal like "12%" or "-3.5%". */
+// Keep these helpers framework-agnostic and side-effect free.
+// Tests import renderDisplay() and toDisplayString() from here.
+
+/** Returns true when string is a percent literal (e.g., "15%"). */
 export function isPercentText(s) {
   return typeof s === 'string' && s.trim().endsWith('%');
 }
 
+/** Remove trailing zeros in fractional part ("1.230" -> "1.23", "10.0" -> "10"). */
 export function trimTrailingZeros(str) {
   if (!str.includes('.')) return str;
   let [i, f] = str.split('.');
@@ -13,8 +17,16 @@ export function trimTrailingZeros(str) {
   return f.length ? i + '.' + f : i;
 }
 
-/** Fit a number string into the iOS-like MAX_LEN window. */
-export function toDisplayString(num, { MAX_LEN, UNDEF }) {
+/**
+ * Convert a number to a human string under a MAX_LEN constraint.
+ * - Prefers fixed decimal when it fits, trims trailing zeros.
+ * - Falls back to exponential if needed.
+ * - Returns "Undefined" for invalid numbers.
+ */
+export function toDisplayString(num, cfg = {}) {
+  const MAX_LEN = Number.isFinite(cfg.MAX_LEN) ? cfg.MAX_LEN : 13;
+  const UNDEF = cfg.UNDEF ?? 'Undefined';
+
   if (!Number.isFinite(num)) return UNDEF;
 
   let s = String(num);
@@ -33,28 +45,44 @@ export function toDisplayString(num, { MAX_LEN, UNDEF }) {
     }
   }
 
-  const reserve = (s.startsWith('-') ? 1 : 0) + 6; // for e±NN
+  const reserve = (s.startsWith('-') ? 1 : 0) + 6; // "e±NN"
   const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
   return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
 }
 
-/** Format a token for the top expression line. */
-export function formatExprPart(value) {
-  if (typeof value === 'string') {
-    const s = value.trim();
-    if (s.endsWith('%')) {
-      const core = s.slice(0, -1).trim();
-      const n = Number(core);
-      return (Number.isFinite(n) ? n.toLocaleString() : core) + '%';
-    }
-    if (/^-?\d+\.$/.test(s) || s === '0.') return s;
-    const n = Number(s);
-    if (Number.isFinite(n)) return trimTrailingZeros(String(n));
-    return s;
+/**
+ * Render final text for the bottom display, matching iOS nuances.
+ * Consumers pass { showingResult } to decide how to style negatives.
+ */
+export function renderDisplay(text, { showingResult = false } = {}) {
+  const t = String(text).trim();
+  const UNDEF = 'Undefined';
+  if (t === UNDEF) return t;
+
+  // Live expression: if it already contains operators and spaces — show as is.
+  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
+
+  // Percent literal: during typing negatives show as (-10%)
+  if (isPercentText(t)) {
+    const core = t.slice(0, -1).trim();
+    if (core.startsWith('-')) return `(-${core.slice(1)}%)`;
+    return t;
   }
-  if (typeof value === 'number') return trimTrailingZeros(String(value));
-  if (value && typeof value === 'object' && value.percent)
-    return formatExprPart(String(value.value) + '%');
-  return String(value);
+
+  // Negatives: wrap while typing; plain "-N" on result screen.
+  if (/^-/.test(t)) return showingResult ? t : `(-${t.slice(1)})`;
+
+  return t;
+}
+
+/** Format numeric or percent parts for expression line */
+export function formatExprPart(part) {
+  if (part == null) return '';
+  if (typeof part === 'number') return String(part);
+  if (typeof part === 'string') return part;
+  if (part && typeof part === 'object' && part.percent) {
+    return String(part.value) + '%';
+  }
+  return String(part);
 }
