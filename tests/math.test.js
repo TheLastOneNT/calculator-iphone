@@ -44,4 +44,15 @@ describe('math primitives', () => {
     expect(info.op).toBe('mul');
     expect(info.right).toBe(4);
   });
+
+  it('repeated equals with commas in display', () => {
+    // имитируем состояние после "2 × 2" и первого "=" => "4"
+    // далее 8, 16, 32, ... не должны ломаться на "1,024"
+    const seq = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
+    let a = 4;
+    for (let i = 1; i < seq.length; i++) {
+      a = a * 2;
+      expect(a).toBe(seq[i]);
+    }
+  });
 });
