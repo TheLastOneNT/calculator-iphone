@@ -155,8 +155,7 @@ body {
     BlinkMacSystemFont,
     system-ui,
     sans-serif;
-  font-weight: 400;
-  font-variation-settings: 'wght' 300;
+  font-weight: 400; /* thicker labels globally */
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
@@ -192,12 +191,12 @@ button[data-action='dot'] {
   font-size: var(--btnFontDigit);
 }
 
-/* operators and "=" */
+/* operators and "=" — enlarge ONLY the text, not the button */
 button[data-op],
 button[data-action='equal'] {
   background: var(--op-bg);
   color: var(--op-fg);
-  font-size: calc(var(--btnFontOp) * 1.25);
+  font-size: calc(var(--btnFontOp) * 1.25); /* bigger label inside */
 }
 
 /* active operator — keep original color (no theme flip in new iOS) */
@@ -242,7 +241,7 @@ button[data-action='equal']:active {
   display: block;
   object-fit: contain;
   filter: invert(1) brightness(1.1);
-  transform: translateY(1px);
+  transform: translateY(2px);
 }
 
 /* +/- SVG — slightly lowered and sized like digits */
@@ -252,9 +251,6 @@ button[data-action='sign'] svg {
   display: block;
   transform: translateY(3px);
 }
-
-/* remove global optical lift that overrode icon offsets */
-/* (deleted) .buttons > button > * { transform: translateY(-1px); } */
 
 /* compact heights */
 @media (max-height: 740px) {
