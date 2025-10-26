@@ -218,6 +218,13 @@ button[data-action='equal']:active {
     filter 0.12s ease;
 }
 
+/* align operator/equal labels visually centered */
+button[data-op] .op-label,
+button[data-action='equal'] .op-label {
+  display: inline-block;
+  transform: translateY(-4px); /* adjust -1px..-3px for perfect centering */
+}
+
 .buttons > button:active {
   transform: scale(0.98);
 }
