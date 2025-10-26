@@ -23,12 +23,6 @@ body {
   height: 100%;
 }
 
-html,
-body,
-.calc {
-  touch-action: manipulation;
-}
-
 body {
   margin: 0;
   background: #000;
@@ -46,7 +40,7 @@ body {
   --gap: clamp(10px, 2.8vw, 14px);
   --displayPad: clamp(16px, 4vw, 22px);
 
-  /* резиновый размер круга, но без ломания сетки */
+  /* elastic circle size without breaking the grid */
   --btnSize: clamp(58px, 13vw, 68px);
   --btnFontDigit: calc(var(--btnSize) * 0.48);
   --btnFontOp: calc(var(--btnSize) * 0.6);
@@ -55,7 +49,7 @@ body {
   --digit-bg: #1c1c1c;
   --digit-fg: #ffffff;
 
-  /* iOS-точные цвета функциональных клавиш */
+  /* functional keys color (AC, %, backspace) */
   --func-bg: #505050;
   --func-fg: #ffffff;
 
@@ -64,7 +58,7 @@ body {
 
   --expr-fg: #d4d4d2;
 
-  /* Display sizes (верхняя граница — view.js подгонит масштаб) */
+  /* display font bounds (actual scale controlled by view.js) */
   --display-font-max: 68px;
   --display-font-min: 40px;
 }
@@ -120,7 +114,7 @@ body {
   min-height: 1.05em;
 }
 
-/* абсолютно позиционируемый слой для авто-масштаба */
+/* absolutely positioned layer for auto-scaling text */
 .display .fit {
   position: absolute;
   right: 0;
@@ -138,7 +132,7 @@ body {
   grid-template-columns: repeat(4, 1fr);
   grid-auto-rows: 1fr;
   gap: var(--gap);
-  /* ключевое: выровнять поля с дисплеем, как на iPhone */
+  /* align the paddings with display like on iPhone */
   padding: 0 var(--displayPad) var(--displayPad);
 }
 
@@ -173,9 +167,15 @@ body {
     box-shadow 0.12s ease,
     background-color 0.12s ease,
     color 0.12s ease;
+
+  /* fast taps: do not wait for double-tap zoom */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* функциональные: AC, % и ⌫ — светло-серые с чёрным текстом */
+/* functional: AC, % and backspace */
 button[data-action],
 button[aria-label='Backspace'] {
   background: var(--func-bg);
@@ -183,7 +183,7 @@ button[aria-label='Backspace'] {
   font-size: var(--btnFontFunc);
 }
 
-/* исключения: ± и . — как цифры */
+/* exceptions: +/- and . look like digits */
 button[data-action='sign'],
 button[data-action='dot'] {
   background: var(--digit-bg);
@@ -191,7 +191,7 @@ button[data-action='dot'] {
   font-size: var(--btnFontDigit);
 }
 
-/* операторы и "=" — оранжевые */
+/* operators and "=" */
 button[data-op],
 button[data-action='equal'] {
   background: var(--op-bg);
@@ -199,7 +199,7 @@ button[data-action='equal'] {
   font-size: var(--btnFontOp);
 }
 
-/* активный оператор — как на iOS: белая кнопка + оранжевый текст */
+/* active operator — keep original color (no theme flip in new iOS) */
 button.active-op {
   background: var(--op-bg);
   color: var(--op-fg);
@@ -208,6 +208,7 @@ button.active-op {
   box-shadow: none;
 }
 
+/* press feedback */
 button[data-op]:active,
 button[data-action='equal']:active {
   transform: scale(1.06);
@@ -217,7 +218,6 @@ button[data-action='equal']:active {
     filter 0.12s ease;
 }
 
-/* нажатие/фокус */
 .buttons > button:active {
   transform: scale(0.98);
 }
@@ -226,28 +226,25 @@ button[data-action='equal']:active {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
-/* лёгкий hover для десктопа */
+/* light hover on desktop */
 @media (hover: hover) {
   .buttons > button:hover {
     filter: brightness(1.08);
   }
 }
 
-/* иконки */
+/* icons */
+/* backspace PNG — centered and slightly lowered */
 .icon-backspace {
   width: 55%;
   height: 55%;
   display: block;
   object-fit: contain;
   filter: invert(1) brightness(1.1);
-  transform: translateY(3px);
+  transform: translateY(2px);
 }
 
-/* оптический подъём глифов */
-.buttons > button > * {
-  transform: translateY(-1px);
-}
-
+/* +/- SVG — slightly lowered and sized like digits */
 button[data-action='sign'] svg {
   width: 60%;
   height: 60%;
@@ -255,11 +252,10 @@ button[data-action='sign'] svg {
   transform: translateY(3px);
 }
 
-.buttons > button > img.icon-backspace {
-  transform: translateY(2px);
-}
+/* remove global optical lift that overrode icon offsets */
+/* (deleted) .buttons > button > * { transform: translateY(-1px); } */
 
-/* компактные экраны по высоте */
+/* compact heights */
 @media (max-height: 740px) {
   :root {
     --display-font-max: 60px;
