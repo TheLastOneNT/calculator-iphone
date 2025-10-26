@@ -101,7 +101,11 @@ body {
 }
 
 .display {
-  font-size: clamp(var(--display-font-min), 10.5vw, var(--display-font-max));
+  font-size: clamp(
+    var(--display-font-min),
+    max(10.5vw, calc(var(--btnSize) * 0.78)),
+    var(--display-font-max)
+  );
   line-height: 1.05;
   font-weight: 500;
   user-select: none;
