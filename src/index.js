@@ -1,4 +1,7 @@
-// Entry point for the browser. Bootstraps the app module.
-import { start } from './app/index.js';
+// App entry: wires controller and view
 
-start();
+import { createController } from './app/controller.js';
+import * as view from './app/view.js';
+
+const controller = createController();
+view.init(controller);

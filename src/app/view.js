@@ -1,109 +1,90 @@
-// View layer: DOM refs, rendering, scaling, and event binding.
+// View layer: DOM refs, rendering, event binding, fit-to-width scaling
 
-import { renderDisplay } from './format.js';
+import { isPercentText, formatExprPart } from './format.js';
+import { MAX_LEN } from './config.js';
 
-export function createView({
-  exprSelector,
-  displaySelector,
-  buttonsSelector,
-  clearSelector,
-  opButtonsSelector,
-  minScale = 0.5,
-}) {
-  // --- DOM
-  const exprEl = document.querySelector(exprSelector);
-  const displayEl = document.querySelector(displaySelector);
-  const buttonsEl = document.querySelector(buttonsSelector);
-  const clearBtn = document.querySelector(clearSelector);
-  const opButtons = Array.from(document.querySelectorAll(opButtonsSelector));
+const exprEl = document.querySelector('.expr');
+const displayEl = document.querySelector('.display');
+const buttonsEl = document.querySelector('.buttons');
+const clearBtn = document.querySelector('button[data-action="clear"]');
+const opButtons = Array.from(document.querySelectorAll('[data-op]'));
 
+let fitSpan = null;
+
+export function init(controller) {
   if (!displayEl || !buttonsEl) {
     throw new Error('Missing .display or .buttons in DOM');
   }
 
-  // Create scalable layer inside the result display so layout never shifts.
-  let fitSpan = document.createElement('span');
+  // Inject absolute .fit layer so scaling does not affect layout.
+  fitSpan = document.createElement('span');
   fitSpan.className = 'fit';
   while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
   displayEl.appendChild(fitSpan);
 
-  // --- Rendering helpers
-  function fitDisplayText() {
-    if (!fitSpan) return;
-    fitSpan.style.transform = 'scale(1)';
+  // Buttons
+  buttonsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const txt = btn.textContent.trim();
+    const action = btn.dataset.action;
+    const op = btn.dataset.op;
 
-    const cw = displayEl.clientWidth;
-    const sw = fitSpan.scrollWidth;
-    if (sw <= 0 || cw <= 0) return;
+    if (/^[0-9]$/.test(txt)) return controller.onDigit(txt);
+    if (action) return controller.onAction(action, txt);
+    if (op) return controller.onOperator(op);
+  });
 
-    let scale = cw / sw;
-    if (!Number.isFinite(scale) || scale <= 0) scale = 1;
-    if (scale > 1) scale = 1;
-    if (scale < minScale) scale = minScale;
+  // Keyboard
+  document.addEventListener('keydown', controller.onKey);
 
-    fitSpan.style.transform = `scale(${scale})`;
-  }
+  // First paint
+  controller._rerender();
+}
 
-  function updateClearLabel(currentValue, isPercentText) {
-    if (!clearBtn) return;
-    const hasPercent = isPercentText(currentValue);
-    const hasTyped = currentValue !== '0' || hasPercent || /[.]/.test(currentValue);
+export function update(model, bottomText) {
+  // Expression (top)
+  if (exprEl) exprEl.textContent = model.state.exprFrozen || '';
+
+  // Clear button label
+  if (clearBtn) {
+    const cv = model.state.currentValue;
+    const hasPercent = isPercentText(cv);
+    const hasTyped = cv !== '0' || hasPercent || /[.]/.test(cv);
     clearBtn.textContent = hasTyped ? 'C' : 'AC';
   }
 
-  function updateExpressionLine(exprFrozen) {
-    if (exprEl) exprEl.textContent = exprFrozen || '';
-  }
+  // Bottom display (fit into width)
+  if (fitSpan) fitSpan.textContent = bottomText;
+  else displayEl.textContent = bottomText;
 
-  function highlightOperator(op, OP_FROM_ATTR) {
-    opButtons.forEach((btn) => {
-      btn.classList.toggle(
-        'active-op',
-        btn.dataset.op && OP_FROM_ATTR[btn.dataset.op] === op
-      );
-    });
-  }
-
-  function clearOpHighlight() {
-    opButtons.forEach((btn) => btn.classList.remove('active-op'));
-  }
-
-  // Public render: consumes model and prepared bottom text
-  function update(model, bottomText) {
-    const { cfg, state } = model;
-    const txt = renderDisplay(bottomText, cfg, state.showingResult);
-    fitSpan.textContent = txt;
-
-    updateClearLabel(state.currentValue, model.isPercentText || (() => false));
-    updateExpressionLine(state.exprFrozen);
-    fitDisplayText();
-  }
-
-  // --- Event binding (delegation + keyboard)
-  function bindUI({ onDigit, onAction, onOperator, onKey }) {
-    // Buttons
-    buttonsEl.addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-
-      const txt = btn.textContent.trim();
-      const action = btn.dataset.action;
-      const op = btn.dataset.op;
-
-      if (/^[0-9]$/.test(txt)) return onDigit(txt);
-      if (action) return onAction(action, txt);
-      if (op) return onOperator(op);
-    });
-
-    // Keyboard
-    document.addEventListener('keydown', (e) => onKey(e));
-  }
-
-  return {
-    update,
-    bindUI,
-    fitDisplayText,
-    highlightOperator,
-    clearOpHighlight,
-  };
+  fitDisplayText();
 }
+
+export function highlightOperator(currentOp, OP_FROM_ATTR) {
+  opButtons.forEach((btn) => {
+    const isActive = btn.dataset.op && OP_FROM_ATTR[btn.dataset.op] === currentOp;
+    btn.classList.toggle('active-op', isActive);
+  });
+}
+
+export function clearOpHighlight() {
+  opButtons.forEach((btn) => btn.classList.remove('active-op'));
+}
+
+function fitDisplayText() {
+  if (!fitSpan) return;
+  fitSpan.style.transform = 'scale(1)';
+  const cw = displayEl.clientWidth;
+  const sw = fitSpan.scrollWidth;
+  if (sw <= 0 || cw <= 0) return;
+  let scale = cw / sw;
+  if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+  if (scale > 1) scale = 1;
+  const MIN_SCALE = 0.5;
+  if (scale < MIN_SCALE) scale = MIN_SCALE;
+  fitSpan.style.transform = `scale(${scale})`;
+}
+
+// helper export used by controller for formatting the top line
+export { formatExprPart };

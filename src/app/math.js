@@ -1,4 +1,4 @@
-// Math / evaluation with operator precedence and iOS percent semantics.
+// Math engine: operator application, % resolution, precedence evaluation
 
 export function applyOp(a, op, b) {
   switch (op) {
@@ -15,7 +15,7 @@ export function applyOp(a, op, b) {
   }
 }
 
-// Right-operand may be a percent node: resolve using iOS rules.
+/** Resolve right operand that may be a percent node, iOS rules. */
 export function resolveRightOperand(left, op, rightNode) {
   if (typeof rightNode === 'number') return rightNode;
   if (rightNode && rightNode.percent) {
@@ -46,7 +46,7 @@ export function evaluateTokens(seq) {
   }
   if (ops.length === values.length) ops.pop();
 
-  // Pass 1: × / ÷
+  // pass 1: × ÷
   for (let i = 0; i < ops.length; ) {
     const op = ops[i];
     if (op === 'mul' || op === 'div') {
@@ -59,12 +59,10 @@ export function evaluateTokens(seq) {
       if (!Number.isFinite(raw)) return { error: true };
       values.splice(i, 2, raw);
       ops.splice(i, 1);
-    } else {
-      i++;
-    }
+    } else i++;
   }
 
-  // Pass 2: + / −
+  // pass 2: + −
   while (ops.length) {
     const op = ops.shift();
     const leftVal =
@@ -80,26 +78,4 @@ export function evaluateTokens(seq) {
   const final =
     typeof values[0] === 'number' ? values[0] : resolveRightOperand(0, 'add', values[0]);
   return { error: false, value: final };
-}
-
-export function extractLastOp(seq) {
-  let lastOpIndex = -1;
-  for (let i = seq.length - 2; i >= 1; i--) {
-    if (typeof seq[i] === 'string') {
-      lastOpIndex = i;
-      break;
-    }
-  }
-  if (lastOpIndex === -1) return null;
-
-  const leftVal = resolveNodeToNumber(seq[lastOpIndex - 1], 0, 'add');
-  const op = seq[lastOpIndex];
-  const rightVal = resolveRightOperand(leftVal, op, seq[lastOpIndex + 1]);
-  return { op, right: rightVal };
-}
-
-export function resolveNodeToNumber(node, left, op) {
-  if (typeof node === 'number') return node;
-  if (node && node.percent) return resolveRightOperand(left, op, node);
-  return 0;
 }

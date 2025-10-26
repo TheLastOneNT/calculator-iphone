@@ -1,2 +1,8 @@
-dist/
-coverage/
+node_modules
+dist
+build
+coverage
+.vite
+*.png
+*.jpg
+assets/
