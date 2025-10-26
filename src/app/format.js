@@ -32,91 +32,112 @@ function addThousands(numStr) {
 // === number → display string ===============================================
 
 /**
- * Convert a number to a human string under a MAX_LEN constraint.
- * Now always uses thousand separators for the integer part.
+ * Converts a number to a displayable string under MAX_LEN constraint.
+ * Always adds thousand separators.
  */
 export function toDisplayString(num, cfg = {}) {
   const MAX_LEN = Number.isFinite(cfg.MAX_LEN) ? cfg.MAX_LEN : 13;
   const UNDEF = cfg.UNDEF ?? 'Undefined';
 
-  const n = Number(num);
-  if (!Number.isFinite(n)) return UNDEF;
+  if (num === null || num === undefined) return UNDEF;
 
-  // 1) Try fixed with commas, reducing fractional digits until it fits
-  const sign = n < 0 ? '-' : '';
-  const abs = Math.abs(n);
-  const MAX_FRAC = 12;
+  if (!Number.isFinite(num)) return UNDEF;
 
-  for (let frac = MAX_FRAC; frac >= 0; frac--) {
-    let s = abs.toString();
-    if (frac < MAX_FRAC) {
-      s = abs.toFixed(frac);
-      s = trimTrailingZeros(s);
-    }
-    s = addThousands(s);
-    s = sign ? (s.startsWith('-') ? s : '-' + s) : s; // ensure sign
+  let s = String(num);
+  s = trimTrailingZeros(s);
 
-    if (s.length <= MAX_LEN) return s;
+  if (s.includes('.')) {
+    const [intPart, decPart] = s.split('.');
+    s = formatThousands(intPart) + '.' + decPart;
+  } else {
+    s = formatThousands(s);
   }
 
-  // 2) Fall back to exponential
-  const reserve = (sign ? 1 : 0) + 6; // "e±NN" and sign
+  if (s.length <= MAX_LEN) return s;
+
+  if (s.includes('.')) {
+    const [i] = s.split('.');
+    const free = Math.max(0, MAX_LEN - i.length - 1);
+    if (free > 0) {
+      s = Number(num).toFixed(free);
+      s = trimTrailingZeros(s);
+      return formatThousands(s);
+    } else {
+      return formatThousands(i.slice(0, MAX_LEN));
+    }
+  }
+
+  const reserve = (s.startsWith('-') ? 1 : 0) + 6;
   const digits = Math.max(0, MAX_LEN - reserve);
-  const exp = n.toExponential(digits);
-  return exp.length <= MAX_LEN ? exp : exp.slice(0, MAX_LEN);
+  s = Number(num).toExponential(Math.max(0, digits));
+  return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
+}
+
+function formatThousands(str) {
+  return str.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 // === render the bottom display =============================================
 
 /**
- * Render final text for the bottom display, matching iOS nuances.
- * Now also adds thousands separators while typing numbers.
+ * Render the text shown on the main calculator display.
+ * Handles incomplete input like "2222." and keeps commas consistent.
  */
 export function renderDisplay(text, { showingResult = false } = {}) {
   const t = String(text).trim();
   const UNDEF = 'Undefined';
   if (t === UNDEF) return t;
 
-  // If it already looks like a composed expression ("A op B") — show as is;
-  // numbers inside приходят уже отформатированными через formatExprPart.
+  // If it's a composed expression (e.g. "12 + 5") — show as-is
   if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
 
-  // Percent literal: during typing negatives show as (-10%); also add commas to core
+  const raw = t.replace(/,/g, '');
+
+  // 1) Handle unfinished decimal input like "2222." or "-2222."
+  if (/^-?\d+\.$/.test(raw)) {
+    const base = raw.slice(0, -1); // remove final dot
+    const fmt = addThousands(base);
+    if (fmt.startsWith('-')) {
+      return showingResult ? fmt + '.' : `(-${fmt.slice(1)}.)`;
+    }
+    return fmt + '.';
+  }
+
+  // 2) Percent literal (e.g. "15%")
   if (isPercentText(t)) {
-    const core = t.slice(0, -1).trim(); // may be "-12345.6"
+    const core = t.slice(0, -1).trim();
     const coreFmt = addThousands(core.replace(/,/g, ''));
     if (core.startsWith('-')) return `(-${coreFmt.slice(1)}%)`;
     return coreFmt + '%';
   }
 
-  // Plain number: add commas; negatives wrapped while typing
-  if (/^-?\d+(\.\d+)?$/.test(t.replace(/,/g, ''))) {
-    const fmt = addThousands(t.replace(/,/g, ''));
-    if (/^-/.test(fmt)) {
+  // 3) Regular numbers (e.g. "1234", "1234.56")
+  if (/^-?\d+(\.\d+)?$/.test(raw)) {
+    const fmt = addThousands(raw);
+    if (fmt.startsWith('-')) {
       return showingResult ? fmt : `(-${fmt.slice(1)})`;
     }
     return fmt;
   }
 
+  // 4) Anything else — leave untouched
   return t;
 }
 
 // === expression parts =======================================================
 
-/** Format numeric or percent parts for expression line (top) */
+/** Formats numeric or percent parts for the top expression line. */
 export function formatExprPart(part) {
   if (part == null) return '';
   if (typeof part === 'number') {
     return addThousands(String(part));
   }
   if (typeof part === 'string') {
-    // numeric string?
     if (/^-?\d+(\.\d+)?$/.test(part.replace(/,/g, ''))) {
       return addThousands(part.replace(/,/g, ''));
     }
     return part;
   }
-  // percent node
   if (part && typeof part === 'object' && part.percent) {
     const core = addThousands(String(part.value));
     return `${core}%`;
