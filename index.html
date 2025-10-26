@@ -11,23 +11,17 @@
     <link rel="stylesheet" href="./styles/main.css" />
   </head>
   <body>
-    <main class="calc" aria-label="Calculator">
+    <main class="calc">
       <!-- DISPLAY -->
       <div class="display-wrap">
         <div class="expr" aria-live="polite"></div>
         <div class="display">0</div>
       </div>
 
-      <!-- KEYPAD 4×5 -->
-      <div class="buttons" aria-label="Keypad">
+      <!-- KEYPAD -->
+      <div class="buttons">
         <!-- row 1 -->
-        <button
-          type="button"
-          data-action="backspace"
-          aria-label="Backspace"
-          class="icon-btn"
-          title="Backspace"
-        >
+        <button type="button" data-action="backspace" class="icon-btn" title="Backspace">
           <svg viewBox="0 0 48 48" aria-hidden="true">
             <path d="M8 24 L18 14 L18 34 Z" fill="currentColor" />
             <rect
@@ -46,29 +40,27 @@
         <button type="button" data-action="clear">AC</button>
         <button type="button" data-action="percent">%</button>
         <button type="button" data-op="divide">÷</button>
+
         <!-- row 2 -->
         <button type="button">7</button>
         <button type="button">8</button>
         <button type="button">9</button>
         <button type="button" data-op="multiply">×</button>
+
         <!-- row 3 -->
         <button type="button">4</button>
         <button type="button">5</button>
         <button type="button">6</button>
         <button type="button" data-op="minus">−</button>
+
         <!-- row 4 -->
         <button type="button">1</button>
         <button type="button">2</button>
         <button type="button">3</button>
         <button type="button" data-op="plus">+</button>
+
         <!-- row 5 -->
-        <button
-          type="button"
-          data-action="sign"
-          class="icon-btn"
-          aria-label="Plus/Minus"
-          title="+/-"
-        >
+        <button type="button" data-action="sign" class="icon-btn" title="+/-">
           <svg viewBox="0 0 48 48" aria-hidden="true">
             <path
               d="M10 12 h11 M15.5 6.5 v11"
@@ -97,7 +89,6 @@
       </div>
     </main>
 
-    <!-- IMPORTANT: module entry -->
     <script type="module" src="./src/index.js"></script>
   </body>
 </html>
