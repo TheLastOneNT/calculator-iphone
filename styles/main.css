@@ -59,8 +59,8 @@ body {
   --expr-fg: #d4d4d2;
 
   /* display font bounds (actual scale controlled by view.js) */
-  --display-font-max: 68px;
-  --display-font-min: 40px;
+  --display-font-max: 82px;
+  --display-font-min: 46px;
 }
 
 /* ---------------------------------------
