@@ -65,7 +65,7 @@ buttonsEl.addEventListener(
 
     // prevent text selection / native gestures, and mark to suppress the next click
     e.preventDefault();
-    suppressClicksUntil = performance.now() + 80; // small window to swallow the synthetic click
+    suppressClicksUntil = performance.now() + 140; // small window to swallow the synthetic click
   },
   { passive: false }
 );
