@@ -1,24 +1,19 @@
-name: Deploy to GitHub Pages
+name: CI
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: 'pages'
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -27,10 +22,19 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
-      - name: Build project
+      - name: Lint
+        run: npm run lint
+
+      - name: Format (check)
+        run: npm run format
+
+      - name: Test
+        run: npm run test -- --coverage
+
+      - name: Build
         run: npm run build
 
       - name: Upload artifact
