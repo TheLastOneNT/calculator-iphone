@@ -20,7 +20,7 @@ function beginTyping() {
   state.exprFrozen = '';
 }
 
-// Build the bottom-line string (live typing / operators)
+// Build the bottom-line string (live typing / operators) — COMPACT (no spaces)
 function buildBottomText() {
   if (!state.operator) return state.currentValue;
 
@@ -28,21 +28,22 @@ function buildBottomText() {
   for (let i = 0; i < state.tokens.length; i++) {
     const t = state.tokens[i];
     if (typeof t === 'number') parts.push(formatExprPart(t));
-    else if (typeof t === 'string') parts.push(OP_MAP[t]);
+    else if (typeof t === 'string')
+      parts.push(OP_MAP[t]); // no spaces
     else if (t && t.percent) parts.push(formatExprPart(String(t.value) + '%'));
   }
 
   if (state.waitingForSecond) {
     if (parts.length && typeof state.tokens[state.tokens.length - 1] === 'string') {
-      parts[parts.length - 1] = OP_MAP[state.operator];
+      parts[parts.length - 1] = OP_MAP[state.operator]; // replace op
     } else {
-      parts.push(OP_MAP[state.operator]);
+      parts.push(OP_MAP[state.operator]); // append op
     }
-    return parts.join(' ');
+    return parts.join(''); // no spaces
   }
 
   parts.push(formatExprPart(state.currentValue));
-  return parts.join(' ');
+  return parts.join(''); // no spaces
 }
 
 function rerender() {
@@ -118,7 +119,7 @@ export function onAction(action, txt) {
       state.exprFrozen = '';
       return rerender();
     } else {
-      // вычисляем "C" vs "AC" по состоянию, не лезем в DOM
+      // compute "C" vs "AC" from state
       const hasPercent =
         typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%');
       const hasTyped =
@@ -232,7 +233,7 @@ export function onOperator(opAttr) {
     ) {
       state.tokens[state.tokens.length - 1] = nextOp;
     }
-    highlightOperator(state.operator); // без второго аргумента
+    highlightOperator(state.operator);
     return rerender();
   }
 
@@ -247,7 +248,7 @@ export function onOperator(opAttr) {
   state.exprFrozen = '';
   state.lastOperator = null;
   state.lastOperand = null;
-  highlightOperator(state.operator); // без второго аргумента
+  highlightOperator(state.operator);
   return rerender();
 }
 
@@ -306,15 +307,17 @@ export function onKey(e) {
 
 // ---- equals / evaluation ----------------------------------------------------
 
+/** Build compact expr for the TOP line: NO spaces around operator. */
 function buildExprForTopLine(seq) {
   let out = '';
   for (let i = 0; i < seq.length; i++) {
     const t = seq[i];
     if (typeof t === 'number') out += formatExprPart(t);
-    else if (typeof t === 'string') out += ' ' + OP_MAP[t] + ' ';
+    else if (typeof t === 'string')
+      out += OP_MAP[t]; // no spaces
     else if (t && t.percent) out += formatExprPart(String(t.value) + '%');
   }
-  return out.trim();
+  return out;
 }
 
 function doEquals() {
@@ -335,7 +338,7 @@ function doEquals() {
         return rerender();
       }
       state.currentValue = toDisplayString(result);
-      state.exprFrozen = formatExprPart(n) + ' %';
+      state.exprFrozen = formatExprPart(n) + '%'; // compact
       state.lastOperator = null;
       state.lastOperand = null;
       state.showingResult = true;
@@ -345,9 +348,10 @@ function doEquals() {
     if (state.lastOperator !== null && state.lastOperand !== null) {
       const a = toNumberSafe(state.currentValue);
       const result = applyOp(a, state.lastOperator, state.lastOperand);
-      const exprText = `${formatExprPart(a)} ${
-        OP_MAP[state.lastOperator]
-      } ${formatExprPart(state.lastOperand)}`;
+      const exprText =
+        formatExprPart(a) +
+        OP_MAP[state.lastOperator] +
+        formatExprPart(state.lastOperand);
       if (!Number.isFinite(result)) {
         state.exprFrozen = exprText;
         state.currentValue = UNDEF;
@@ -371,7 +375,7 @@ function doEquals() {
   // Case 2: evaluate token stream with precedence
   pushCurrentAsToken();
 
-  const exprText = buildExprForTopLine(state.tokens);
+  const exprText = buildExprForTopLine(state.tokens); // compact for top line
   const evalRes = evaluateTokens(state.tokens);
   if (evalRes.error) {
     state.exprFrozen = exprText;

@@ -26,7 +26,7 @@ export function render(bottomText) {
     showingResult: state.showingResult,
   });
 
-  // top line
+  // top line (already compact, no spaces between numbers and operators)
   exprEl.textContent = state.exprFrozen || '';
 
   // "C" vs "AC" label, directly from state
@@ -54,7 +54,7 @@ function fitDisplayText() {
 
 export function highlightOperator(op /* "add" | "sub" | "mul" | "div" */) {
   opButtons.forEach((btn) => {
-    const internal = OP_FROM_ATTR[btn.dataset.op]; // plus→add, …
+    const internal = OP_FROM_ATTR[btn.dataset.op];
     btn.classList.toggle('active-op', internal === op);
   });
 }

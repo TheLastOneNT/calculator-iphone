@@ -95,18 +95,16 @@ function formatThousands(str) {
 /**
  * Render the text shown on the main calculator display.
  * Handles incomplete input like "2222." and keeps commas consistent.
- * When the bottom line is a composed expression (built by controller),
- * numbers inside should already be formatted via formatExprPart(..),
- * so we leave composed strings as-is (except for the special unfinished-decimal case handled there).
+ * For composed expressions (with operators), we return the text as-is (no spaces around ops).
  */
 export function renderDisplay(text, { showingResult = false } = {}) {
   const t = String(text).trim();
   const UNDEF = 'Undefined';
   if (t === UNDEF) return t;
 
-  // If it's a composed expression (contains an operator + spaces), return as-is.
-  // (The controller uses formatExprPart for parts, including the current input.)
-  if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
+  // If it's a composed expression (contains any op sign), return as-is.
+  // Operators use unicode minus '−' (U+2212), so leading '-' negatives won't match.
+  if (/[+×÷−]/.test(t)) return t;
 
   const raw = t.replace(/,/g, '');
 
@@ -145,7 +143,7 @@ export function renderDisplay(text, { showingResult = false } = {}) {
 
 /**
  * Format a single expression token (number / percent / operator).
- * Crucially, this now supports unfinished decimals like "5555." so that
+ * Supports unfinished decimals like "5555." so that
  * the second operand is formatted with commas while typing (e.g. "5,555.").
  */
 export function formatExprPart(part) {
@@ -162,7 +160,7 @@ export function formatExprPart(part) {
 
     // Unfinished decimal like "5555." or "-5555."
     if (/^-?\d+\.$/.test(raw)) {
-      const base = raw.slice(0, -1); // "5555" / "-5555"
+      const base = raw.slice(0, -1);
       const withCommas = addThousandsIntOnly(base);
       return withCommas + '.';
     }
@@ -172,7 +170,7 @@ export function formatExprPart(part) {
       return addThousands(raw);
     }
 
-    // Percent literal embedded in string (rare path)
+    // Percent literal embedded in string
     if (isPercentText(part)) {
       const core = part.slice(0, -1).trim();
       const coreFmt = addThousands(core.replace(/,/g, ''));
