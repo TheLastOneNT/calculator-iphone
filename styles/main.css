@@ -222,7 +222,7 @@ button[data-action='equal']:active {
 button[data-op] .op-label,
 button[data-action='equal'] .op-label {
   display: inline-block;
-  transform: translateY(-4px); /* adjust -1px..-3px for perfect centering */
+  transform: translateY(-3px);
 }
 
 .buttons > button:active {
