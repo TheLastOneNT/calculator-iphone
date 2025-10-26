@@ -1,32 +1,33 @@
 export function trimTrailingZeros(str) {
   if (!str.includes('.')) return str;
-  const [intPart, fracRaw = ''] = str.split('.');
-  if (!fracRaw) return intPart;
-  const frac = fracRaw.replace(/0+$/, '');
-  return frac.length ? `${intPart}.${frac}` : intPart;
+  let [i, f] = str.split('.');
+  if (!f) return i;
+  f = f.replace(/0+$/, '');
+  return f.length ? i + '.' + f : i;
 }
 
-export function toDisplayString(num, maxLen, UNDEF_LABEL = 'Undefined') {
-  if (!Number.isFinite(num)) return UNDEF_LABEL;
+export function toDisplayString(num, MAX_LEN = 13, UNDEF = 'Undefined') {
+  if (!Number.isFinite(num)) return UNDEF;
 
   let s = String(num);
   s = trimTrailingZeros(s);
-  if (s.length <= maxLen) return s;
+  if (s.length <= MAX_LEN) return s;
 
   if (s.includes('.')) {
-    const [intPart, frac = ''] = s.split('.');
-    const free = Math.max(0, maxLen - intPart.length - 1);
+    const [i] = s.split('.');
+    const free = Math.max(0, MAX_LEN - i.length - 1);
     if (free > 0) {
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
-      if (s.length <= maxLen) return s;
+      if (s.length <= MAX_LEN) return s;
     } else {
-      return intPart.slice(0, maxLen);
+      return i.slice(0, MAX_LEN);
     }
   }
 
-  const reserve = (s.startsWith('-') ? 1 : 0) + 6; // room for "e±NN"
-  const digits = Math.max(0, maxLen - reserve);
+  // Exponential fallback (reserve chars for "e±NN")
+  const reserve = (s.startsWith('-') ? 1 : 0) + 6;
+  const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
-  return s.length <= maxLen ? s : s.slice(0, maxLen);
+  return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
 }
