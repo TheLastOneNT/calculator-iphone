@@ -1,13 +1,12 @@
 // src/app/model.js
 // Centralized calculator state + safe helpers for number parsing/pushing
 
-import { UNDEF as UNDEF_FALLBACK } from './config.js';
-
 // ---- State -----------------------------------------------------------------
 
 export const state = {
-  currentValue: '0', // bottom line text (user is typing here)
-  tokens: [], // expression tokens: number | 'add'|'sub'|'mul'|'div' | { percent:true, value:number }
+  currentValue: '0', // bottom line text (user types here)
+  // sequence: number | 'add'|'sub'|'mul'|'div' | { percent:true, value:number }
+  tokens: [],
   operator: null, // 'add' | 'sub' | 'mul' | 'div' | null
   waitingForSecond: false,
   lastOperator: null, // for repeated "="
@@ -19,10 +18,10 @@ export const state = {
 // ---- Parsing helpers -------------------------------------------------------
 
 /**
- * Strip visual formatting and return a clean string for numeric parsing.
+ * Strip visual formatting to get a clean numeric string.
  * Handles:
- *  - thousand separators (commas) → removed
- *  - unfinished decimals like "2222." → leave as-is (Number('2222.') works)
+ *  - thousands (commas) → removed
+ *  - unfinished decimals like "2222." → kept (Number('2222.') works)
  *  - percent literals like "12%" → returns "0.12"
  */
 function normalizeNumericString(input) {
@@ -41,13 +40,12 @@ function normalizeNumericString(input) {
 
   // Remove thousand separators for regular numbers / unfinished decimals
   s = s.replace(/,/g, '');
-
   return s;
 }
 
 /**
  * Convert currentValue-like input to Number safely.
- * Returns 0 when not finite (we prefer a neutral value for continued UX).
+ * Returns 0 when not finite (neutral value keeps UX predictable).
  */
 export function toNumberSafe(x) {
   if (typeof x === 'number') {
@@ -61,14 +59,13 @@ export function toNumberSafe(x) {
 
 // ---- Tokens helpers --------------------------------------------------------
 
-/** Push currentValue as a numeric token (normalizing commas / percents). */
+/** Push currentValue as a token (normalizes commas/percents). */
 export function pushCurrentAsToken() {
-  // If currentValue is a percent text like "12%", treat it as a percent node
+  // Percent text like "12%" → store a percent node
   if (typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%')) {
     const core = state.currentValue.trim();
     const raw = core.slice(0, -1).trim().replace(/,/g, '');
     const n = Number(raw);
-    // store percent node in tokens; evaluator already knows how to resolve it
     state.tokens.push({ percent: true, value: Number.isFinite(n) ? n : 0 });
     return;
   }
@@ -83,7 +80,7 @@ export function peekLastNumberToken() {
     const t = state.tokens[i];
     if (typeof t === 'number') return t;
     if (t && typeof t === 'object' && t.percent === true) {
-      // Percent node keeps original numeric value (not divided by 100 here)
+      // For percent node return its raw numeric value (not divided by 100 here)
       return t.value;
     }
   }
@@ -92,8 +89,7 @@ export function peekLastNumberToken() {
 
 // ---- Clearing helpers ------------------------------------------------------
 
-export function clearAll(cfg = {}) {
-  const undefText = cfg.UNDEF ?? UNDEF_FALLBACK ?? 'Undefined';
+export function clearAll() {
   state.currentValue = '0';
   state.tokens = [];
   state.operator = null;
@@ -102,7 +98,7 @@ export function clearAll(cfg = {}) {
   state.lastOperand = null;
   state.showingResult = false;
   state.exprFrozen = '';
-  // do not render here; controller/view manage rerenders
+  // No render here; controller/view manage rerenders.
 }
 
 export function clearEntry() {
@@ -111,11 +107,11 @@ export function clearEntry() {
   state.exprFrozen = '';
 }
 
-// ---- Utility for controllers/tests ----------------------------------------
+// ---- Test/dev utility ------------------------------------------------------
 
 /**
- * Replace currentValue with a normalized numeric string (for tests/dev only).
- * Example: setCurrentRaw('1,024.') keeps the trailing dot for typing scenarios.
+ * Replace currentValue with a raw string (keeps trailing dot for typing scenarios).
+ * Example: setCurrentRaw('1,024.')
  */
 export function setCurrentRaw(s) {
   state.currentValue = String(s);

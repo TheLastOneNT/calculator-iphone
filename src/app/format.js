@@ -1,8 +1,13 @@
-// format.js — pure presentation helpers shared by controller and tests
+// format.js — presentation-only helpers used by controller and tests
+
+// === shared regexes =========================================================
+const NUM_PLAIN = /^-?\d+(\.\d+)?$/; // numeric string (optional dot)
+const UNFINISHED_DEC = /^-?\d+\.$/; // e.g. "2222."
+const UNDEF_STR = 'Undefined';
 
 // === helpers ================================================================
 
-/** True if string is a percent literal, e.g. "15%". */
+/** True if string is a percent literal, e.g., "15%". */
 export function isPercentText(s) {
   return typeof s === 'string' && s.trim().endsWith('%');
 }
@@ -23,7 +28,7 @@ export function trimTrailingZeros(str) {
 function addThousands(numStr) {
   if (typeof numStr !== 'string') numStr = String(numStr);
   const plain = numStr.replace(/,/g, '');
-  if (!/^[-]?\d+(\.\d+)?$/.test(plain)) return numStr; // not a plain number
+  if (!NUM_PLAIN.test(plain)) return numStr; // not a plain number
   if (numStr.includes(',')) return numStr; // already formatted
 
   const sign = plain.startsWith('-') ? '-' : '';
@@ -41,16 +46,21 @@ function addThousandsIntOnly(intStr) {
   return sign + withCommas;
 }
 
+/** Add thousand separators to any numeric-looking string (shallow). */
+function formatThousands(str) {
+  return str.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 // === number → display string ===============================================
 
 /**
  * Convert a number to a displayable string under MAX_LEN constraint.
  * Always adds thousand separators for the integer part.
- * Note: live typing cases (like "2222.") are handled in renderDisplay/formatExprPart.
+ * Note: live typing cases (like "2222.") are handled elsewhere.
  */
 export function toDisplayString(num, cfg = {}) {
   const MAX_LEN = Number.isFinite(cfg.MAX_LEN) ? cfg.MAX_LEN : 13;
-  const UNDEF = cfg.UNDEF ?? 'Undefined';
+  const UNDEF = cfg.UNDEF ?? UNDEF_STR;
 
   if (num === null || num === undefined) return UNDEF;
   if (!Number.isFinite(num)) return UNDEF;
@@ -74,120 +84,99 @@ export function toDisplayString(num, cfg = {}) {
       s = Number(num).toFixed(free);
       s = trimTrailingZeros(s);
       return formatThousands(s);
-    } else {
-      return formatThousands(i.slice(0, MAX_LEN));
     }
+    return formatThousands(i.slice(0, MAX_LEN));
   }
 
+  // fall back to scientific
   const reserve = (s.startsWith('-') ? 1 : 0) + 6; // space for "e±NN" and sign
   const digits = Math.max(0, MAX_LEN - reserve);
   s = Number(num).toExponential(Math.max(0, digits));
   return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
 }
 
-/** Add thousand separators to any numeric-looking string. */
-function formatThousands(str) {
-  return str.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
 // === bottom display (live) ==================================================
 
 /**
- * Render the text shown on the main calculator display.
- * Handles incomplete input like "2222." and keeps commas consistent.
- * For composed expressions (with operators), we return the text as-is (no spaces around ops).
+ * Render text for the main display.
+ * Keeps commas consistent; supports unfinished decimals like "2222.".
+ * For composed expressions (with operator glyphs), returns text as-is
+ * (we already produce operator spacing upstream).
  */
 export function renderDisplay(text, { showingResult = false } = {}) {
   const t = String(text).trim();
-  const UNDEF = 'Undefined';
-  if (t === UNDEF) return t;
+  if (t === UNDEF_STR) return t;
 
-  // If it's a composed expression (contains any op sign), return as-is.
-  // Operators use unicode minus '−' (U+2212), so leading '-' negatives won't match.
+  // Composed string (contains operator glyphs) — leave as-is.
+  // Note: uses unicode minus (U+2212) for the operator, not '-' from negatives.
   if (/[+×÷−]/.test(t)) return t;
 
   const raw = t.replace(/,/g, '');
 
-  // 1) Unfinished decimal input like "2222." or "-2222."
-  if (/^-?\d+\.$/.test(raw)) {
+  // 1) Unfinished decimal like "2222." or "-2222."
+  if (UNFINISHED_DEC.test(raw)) {
     const base = raw.slice(0, -1);
     const fmt = addThousandsIntOnly(base);
-    if (fmt.startsWith('-')) {
-      return showingResult ? fmt + '.' : `(-${fmt.slice(1)}.)`;
-    }
-    return fmt + '.';
+    return fmt.startsWith('-')
+      ? showingResult
+        ? fmt + '.'
+        : `(-${fmt.slice(1)}.)`
+      : fmt + '.';
   }
 
-  // 2) Percent literal (e.g. "15%")
+  // 2) Percent literal
   if (isPercentText(t)) {
     const core = t.slice(0, -1).trim();
     const coreFmt = addThousands(core.replace(/,/g, ''));
-    if (core.startsWith('-')) return `(-${coreFmt.slice(1)}%)`;
-    return coreFmt + '%';
+    return core.startsWith('-') ? `(-${coreFmt.slice(1)}%)` : coreFmt + '%';
   }
 
-  // 3) Regular numbers (e.g. "1234", "1234.56")
-  if (/^-?\d+(\.\d+)?$/.test(raw)) {
+  // 3) Plain number
+  if (NUM_PLAIN.test(raw)) {
     const fmt = addThousands(raw);
-    if (fmt.startsWith('-')) {
-      return showingResult ? fmt : `(-${fmt.slice(1)})`;
-    }
-    return fmt;
+    return fmt.startsWith('-') ? (showingResult ? fmt : `(-${fmt.slice(1)})`) : fmt;
   }
 
-  // 4) Anything else — leave untouched
+  // 4) Anything else — unchanged
   return t;
 }
 
-// === expression parts (used in top line and bottom composed string) =========
+// === expression parts (top line / composed bottom) ==========================
 
 /**
  * Format a single expression token (number / percent / operator).
- * Supports unfinished decimals like "5555." so that
- * the second operand is formatted with commas while typing (e.g. "5,555.").
+ * Supports unfinished decimals like "5555." so the second operand
+ * keeps commas while typing (e.g., "5,555.").
  */
 export function formatExprPart(part) {
   if (part == null) return '';
 
-  // Number type
-  if (typeof part === 'number') {
-    return addThousands(String(part));
-  }
+  // Number
+  if (typeof part === 'number') return addThousands(String(part));
 
-  // String type
+  // String
   if (typeof part === 'string') {
     const raw = part.replace(/,/g, '');
 
-    // Unfinished decimal like "5555." or "-5555."
-    if (/^-?\d+\.$/.test(raw)) {
+    if (UNFINISHED_DEC.test(raw)) {
       const base = raw.slice(0, -1);
-      const withCommas = addThousandsIntOnly(base);
-      return withCommas + '.';
+      return addThousandsIntOnly(base) + '.';
     }
+    if (NUM_PLAIN.test(raw)) return addThousands(raw);
 
-    // Plain numeric string
-    if (/^-?\d+(\.\d+)?$/.test(raw)) {
-      return addThousands(raw);
-    }
-
-    // Percent literal embedded in string
     if (isPercentText(part)) {
       const core = part.slice(0, -1).trim();
       const coreFmt = addThousands(core.replace(/,/g, ''));
-      if (core.startsWith('-')) return `(-${coreFmt.slice(1)}%)`;
-      return coreFmt + '%';
+      return core.startsWith('-') ? `(-${coreFmt.slice(1)}%)` : coreFmt + '%';
     }
 
-    // Operator or anything else — return as-is
-    return part;
+    return part; // operator or anything else
   }
 
   // Percent node objects like { percent: true, value: 1234 }
   if (part && typeof part === 'object' && part.percent) {
-    const core = addThousands(String(part.value));
-    return `${core}%`;
+    return `${addThousands(String(part.value))}%`;
   }
 
-  // Fallback
   return String(part);
 }

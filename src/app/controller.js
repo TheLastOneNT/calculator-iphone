@@ -1,4 +1,4 @@
-// Controller: translates user actions into model mutations and view updates.
+// controller.js — wires user actions to model mutations and view updates
 
 import { evaluateTokens, applyOp, extractLastOp } from './math.js';
 import { toDisplayString, formatExprPart, isPercentText } from './format.js';
@@ -13,14 +13,17 @@ import {
 import { render, highlightOperator, clearOpHighlight } from './view.js';
 import { MAX_LEN, UNDEF, OP_FROM_ATTR, OP_MAP } from './config.js';
 
-// ---- internal helpers -------------------------------------------------------
+// ---- internals --------------------------------------------------------------
 
 function beginTyping() {
   state.showingResult = false;
   state.exprFrozen = '';
 }
 
-// Build the bottom-line string (live typing / operators) — COMPACT (no spaces)
+/**
+ * Build compact bottom-line string while typing.
+ * No spaces around operators to match top-line style.
+ */
 function buildBottomText() {
   if (!state.operator) return state.currentValue;
 
@@ -29,7 +32,7 @@ function buildBottomText() {
     const t = state.tokens[i];
     if (typeof t === 'number') parts.push(formatExprPart(t));
     else if (typeof t === 'string')
-      parts.push(OP_MAP[t]); // no spaces
+      parts.push(OP_MAP[t]); // compact
     else if (t && t.percent) parts.push(formatExprPart(String(t.value) + '%'));
   }
 
@@ -39,11 +42,11 @@ function buildBottomText() {
     } else {
       parts.push(OP_MAP[state.operator]); // append op
     }
-    return parts.join(''); // no spaces
+    return parts.join('');
   }
 
   parts.push(formatExprPart(state.currentValue));
-  return parts.join(''); // no spaces
+  return parts.join('');
 }
 
 function rerender() {
@@ -81,7 +84,7 @@ function inputDot() {
   rerender();
 }
 
-// ---- public handlers (used by src/index.js) ---------------------------------
+// ---- public handlers (used by src/index.js) --------------------------------
 
 export function onDigit(d) {
   if (state.currentValue === UNDEF) {
@@ -105,11 +108,13 @@ export function onDigit(d) {
 }
 
 export function onAction(action, txt) {
+  // dot
   if (action === 'dot' || (!action && txt === '.')) {
     inputDot();
     return;
   }
 
+  // clear / clear-entry
   if (action === 'clear') {
     // iOS: if entering second operand, C removes it and keeps "A op"
     if (state.operator && !state.waitingForSecond) {
@@ -118,25 +123,27 @@ export function onAction(action, txt) {
       state.showingResult = false;
       state.exprFrozen = '';
       return rerender();
-    } else {
-      // compute "C" vs "AC" from state
-      const hasPercent =
-        typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%');
-      const hasTyped =
-        state.currentValue !== '0' || hasPercent || /[.]/.test(state.currentValue);
-      if (hasTyped) clearEntry();
-      else clearAll();
-      clearOpHighlight();
-      return rerender();
     }
+    // decide C vs AC by state only
+    const hasPercent =
+      typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%');
+    const hasTyped =
+      state.currentValue !== '0' || hasPercent || /[.]/.test(state.currentValue);
+    if (hasTyped) clearEntry();
+    else clearAll();
+    clearOpHighlight();
+    return rerender();
   }
 
+  // if undefined state — ignore all other actions
   if (action !== 'clear' && state.currentValue === UNDEF) return;
 
+  // equals
   if (action === 'equal' || action === 'equals') {
     return doEquals();
   }
 
+  // +/- sign toggle
   if (action === 'sign') {
     if (state.currentValue === '0' || state.currentValue === '0.') return;
 
@@ -160,8 +167,10 @@ export function onAction(action, txt) {
     return rerender();
   }
 
+  // percent
   if (action === 'percent') {
     if (state.operator && state.waitingForSecond) {
+      // Convert "A op <waiting>" into "A%" (percent of A per iOS add/sub rules) immediately
       state.currentValue = String(peekLastNumberToken() ?? 0) + '%';
       state.operator = null;
       state.waitingForSecond = false;
@@ -183,13 +192,15 @@ export function onAction(action, txt) {
     }
     if (state.currentValue.length > MAX_LEN) {
       state.currentValue = state.currentValue.slice(0, MAX_LEN);
-      if (!state.currentValue.endsWith('%'))
+      if (!state.currentValue.endsWith('%')) {
         state.currentValue = state.currentValue.slice(0, -1) + '%';
+      }
       rerender();
     }
     return;
   }
 
+  // backspace
   if (action === 'backspace') {
     if (state.waitingForSecond) {
       state.waitingForSecond = false;
@@ -314,7 +325,7 @@ function buildExprForTopLine(seq) {
     const t = seq[i];
     if (typeof t === 'number') out += formatExprPart(t);
     else if (typeof t === 'string')
-      out += OP_MAP[t]; // no spaces
+      out += OP_MAP[t]; // compact
     else if (t && t.percent) out += formatExprPart(String(t.value) + '%');
   }
   return out;
@@ -325,6 +336,7 @@ function doEquals() {
   if (!state.operator) {
     const trimmed = state.currentValue.trim();
 
+    // "%" entered as the only operation on current value
     if (trimmed.endsWith('%')) {
       const n = Number(trimmed.slice(0, -1).trim());
       const result = n / 100;
@@ -345,6 +357,7 @@ function doEquals() {
       return rerender();
     }
 
+    // Repeat "=" (uses lastOperator/lastOperand)
     if (state.lastOperator !== null && state.lastOperand !== null) {
       const a = toNumberSafe(state.currentValue);
       const result = applyOp(a, state.lastOperator, state.lastOperand);

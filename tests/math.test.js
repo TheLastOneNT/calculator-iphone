@@ -1,3 +1,4 @@
+// tests/math.test.js
 import {
   applyOp,
   evaluateTokens,
@@ -16,12 +17,21 @@ describe('math primitives', () => {
   });
 
   it('resolveRightOperand percent semantics', () => {
-    // add/sub : right% of left
+    // add/sub: right% of left
     expect(resolveRightOperand(200, 'add', { percent: true, value: 10 })).toBe(20);
     expect(resolveRightOperand(200, 'sub', { percent: true, value: 10 })).toBe(20);
-    // mul/div : right/100
+    // mul/div: right/100
     expect(resolveRightOperand(200, 'mul', { percent: true, value: 10 })).toBe(0.1);
     expect(resolveRightOperand(200, 'div', { percent: true, value: 10 })).toBe(0.1);
+  });
+
+  it('negative percent semantics', () => {
+    // add/sub with negative percent: -10% of left
+    expect(resolveRightOperand(200, 'add', { percent: true, value: -10 })).toBe(-20);
+    expect(resolveRightOperand(200, 'sub', { percent: true, value: -10 })).toBe(-20);
+    // mul/div with negative percent: -10/100
+    expect(resolveRightOperand(200, 'mul', { percent: true, value: -10 })).toBe(-0.1);
+    expect(resolveRightOperand(200, 'div', { percent: true, value: -10 })).toBe(-0.1);
   });
 
   it('evaluateTokens with precedence', () => {
@@ -32,11 +42,19 @@ describe('math primitives', () => {
 
     // 100 + 10% = 110 (right % of left for +)
     const r2 = evaluateTokens([100, 'add', { percent: true, value: 10 }]);
+    expect(r2.error).toBe(false);
     expect(r2.value).toBe(110);
 
     // 100 × 10% = 10 (right/100 for ×)
     const r3 = evaluateTokens([100, 'mul', { percent: true, value: 10 }]);
+    expect(r3.error).toBe(false);
     expect(r3.value).toBe(10);
+  });
+
+  it('evaluateTokens ignores trailing operator (e.g., "2 +")', () => {
+    const r = evaluateTokens([2, 'add']);
+    expect(r.error).toBe(false);
+    expect(r.value).toBe(2);
   });
 
   it('extractLastOp returns last binary op', () => {
@@ -45,9 +63,8 @@ describe('math primitives', () => {
     expect(info.right).toBe(4);
   });
 
-  it('repeated equals with commas in display', () => {
-    // имитируем состояние после "2 × 2" и первого "=" => "4"
-    // далее 8, 16, 32, ... не должны ломаться на "1,024"
+  it('simple doubling growth is correct for small exponents', () => {
+    // Simulate repeated equals after "2 × 2": 4, 8, 16, 32, ...
     const seq = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
     let a = 4;
     for (let i = 1; i < seq.length; i++) {
