@@ -1,7 +1,7 @@
 // Controller: translates user actions into model mutations and view updates.
 
-import { evaluateTokens, applyOp } from './math.js';
-import { toDisplayString, formatExprPart } from './format.js';
+import { evaluateTokens, applyOp, extractLastOp } from './math.js';
+import { toDisplayString, formatExprPart, isPercentText } from './format.js';
 import {
   state,
   toNumberSafe,
@@ -14,10 +14,6 @@ import { render, highlightOperator, clearOpHighlight } from './view.js';
 import { MAX_LEN, UNDEF, OP_FROM_ATTR, OP_MAP } from './config.js';
 
 // ---- internal helpers -------------------------------------------------------
-
-function isPercentText(s) {
-  return typeof s === 'string' && s.trim().endsWith('%');
-}
 
 function beginTyping() {
   state.showingResult = false;
@@ -50,7 +46,6 @@ function buildBottomText() {
 }
 
 function rerender() {
-  // pass the ready-to-show bottom-line text; view handles static layout/fitting
   render(buildBottomText());
 }
 
@@ -85,11 +80,10 @@ function inputDot() {
   rerender();
 }
 
-// ---- public handlers (used by index.js) -------------------------------------
+// ---- public handlers (used by src/index.js) ---------------------------------
 
 export function onDigit(d) {
   if (state.currentValue === UNDEF) {
-    // clear implicit error on next digit
     state.currentValue = d;
     state.operator = null;
     state.waitingForSecond = false;
@@ -124,9 +118,12 @@ export function onAction(action, txt) {
       state.exprFrozen = '';
       return rerender();
     } else {
-      const isC =
-        document.querySelector('button[data-action="clear"]')?.textContent === 'C';
-      if (isC) clearEntry();
+      // вычисляем "C" vs "AC" по состоянию, не лезем в DOM
+      const hasPercent =
+        typeof state.currentValue === 'string' && state.currentValue.trim().endsWith('%');
+      const hasTyped =
+        state.currentValue !== '0' || hasPercent || /[.]/.test(state.currentValue);
+      if (hasTyped) clearEntry();
       else clearAll();
       clearOpHighlight();
       return rerender();
@@ -140,7 +137,6 @@ export function onAction(action, txt) {
   }
 
   if (action === 'sign') {
-    // iOS: do nothing for zero
     if (state.currentValue === '0' || state.currentValue === '0.') return;
 
     if (isPercentText(state.currentValue)) {
@@ -154,7 +150,6 @@ export function onAction(action, txt) {
 
     if (state.currentValue.startsWith('-')) {
       state.currentValue = state.currentValue.slice(1);
-      if (state.currentValue === '0') state.currentValue = '0';
     } else {
       state.currentValue = '-' + state.currentValue;
     }
@@ -186,7 +181,6 @@ export function onAction(action, txt) {
       rerender();
     }
     if (state.currentValue.length > MAX_LEN) {
-      // keep the trailing '%'
       state.currentValue = state.currentValue.slice(0, MAX_LEN);
       if (!state.currentValue.endsWith('%'))
         state.currentValue = state.currentValue.slice(0, -1) + '%';
@@ -238,7 +232,7 @@ export function onOperator(opAttr) {
     ) {
       state.tokens[state.tokens.length - 1] = nextOp;
     }
-    highlightOperator(state.operator, OP_FROM_ATTR);
+    highlightOperator(state.operator); // без второго аргумента
     return rerender();
   }
 
@@ -253,7 +247,7 @@ export function onOperator(opAttr) {
   state.exprFrozen = '';
   state.lastOperator = null;
   state.lastOperand = null;
-  highlightOperator(state.operator, OP_FROM_ATTR);
+  highlightOperator(state.operator); // без второго аргумента
   return rerender();
 }
 
@@ -311,42 +305,6 @@ export function onKey(e) {
 }
 
 // ---- equals / evaluation ----------------------------------------------------
-
-function resolveNodeToNumber(node, left, op) {
-  if (typeof node === 'number') return node;
-  if (node && node.percent) {
-    const n = node.value;
-    if (op === 'add' || op === 'sub') return left * (n / 100);
-    if (op === 'mul' || op === 'div') return n / 100;
-    return n;
-  }
-  return 0;
-}
-
-function extractLastOp(seq) {
-  let lastOpIndex = -1;
-  for (let i = seq.length - 2; i >= 1; i--) {
-    if (typeof seq[i] === 'string') {
-      lastOpIndex = i;
-      break;
-    }
-  }
-  if (lastOpIndex === -1) return null;
-  const leftVal = resolveNodeToNumber(seq[lastOpIndex - 1], 0, 'add');
-  const op = seq[lastOpIndex];
-  const rightVal = (function resolveRight(left, opName, rightNode) {
-    if (typeof rightNode === 'number') return rightNode;
-    if (rightNode && rightNode.percent) {
-      const n = rightNode.value;
-      if (opName === 'add' || opName === 'sub') return left * (n / 100);
-      if (opName === 'mul' || opName === 'div') return n / 100;
-      return n;
-    }
-    return 0;
-  })(leftVal, op, seq[lastOpIndex + 1]);
-
-  return { op, right: rightVal };
-}
 
 function buildExprForTopLine(seq) {
   let out = '';

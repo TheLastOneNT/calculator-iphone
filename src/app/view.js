@@ -2,6 +2,7 @@
 
 import { renderDisplay } from './format.js';
 import { state } from './model.js';
+import { MIN_SCALE, OP_FROM_ATTR } from './config.js';
 
 const exprEl = document.querySelector('.expr');
 const displayEl = document.querySelector('.display');
@@ -47,17 +48,17 @@ function fitDisplayText() {
   let scale = cw / sw;
   if (!Number.isFinite(scale) || scale <= 0) scale = 1;
   if (scale > 1) scale = 1;
-  const MIN_SCALE = 0.5;
   if (scale < MIN_SCALE) scale = MIN_SCALE;
   fitSpan.style.transform = `scale(${scale})`;
 }
 
 export function highlightOperator(op /* "add" | "sub" | "mul" | "div" */) {
   opButtons.forEach((btn) => {
-    const map = { plus: 'add', minus: 'sub', multiply: 'mul', divide: 'div' };
-    btn.classList.toggle('active-op', map[btn.dataset.op] === op);
+    const internal = OP_FROM_ATTR[btn.dataset.op]; // plus→add, …
+    btn.classList.toggle('active-op', internal === op);
   });
 }
+
 export function clearOpHighlight() {
   opButtons.forEach((btn) => btn.classList.remove('active-op'));
 }
