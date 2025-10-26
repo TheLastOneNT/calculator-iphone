@@ -90,18 +90,29 @@ body {
 
 /* TOP expression — bigger, compact, no spacing around operators */
 .expr {
+  position: relative;
   color: var(--expr-fg);
   font-size: clamp(16px, max(2.6vw, calc(var(--btnSize) * 0.34)), 24px);
   line-height: 1.15;
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   min-height: 1.2em;
   text-align: right;
   letter-spacing: 0;
   font-kerning: none;
   font-feature-settings: 'tnum' 1;
+}
+
+/* absolute scaling layer for TOP expression */
+.expr .fit-top {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-block;
+  transform-origin: right center;
+  will-change: transform;
 }
 
 /* BOTTOM result */
@@ -140,7 +151,6 @@ body {
   grid-template-columns: repeat(4, 1fr);
   grid-auto-rows: 1fr;
   gap: var(--gap);
-  /* align the paddings with display like on iPhone */
   padding: 0 var(--displayPad) var(--displayPad);
 }
 
@@ -163,7 +173,7 @@ body {
     BlinkMacSystemFont,
     system-ui,
     sans-serif;
-  font-weight: 400; /* thicker labels globally */
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
@@ -176,7 +186,6 @@ body {
     background-color 0.12s ease,
     color 0.12s ease;
 
-  /* fast taps: do not wait for double-tap zoom */
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
@@ -204,7 +213,7 @@ button[data-op],
 button[data-action='equal'] {
   background: var(--op-bg);
   color: var(--op-fg);
-  font-size: calc(var(--btnFontOp) * 1.25); /* bigger label inside */
+  font-size: calc(var(--btnFontOp) * 1.25);
 }
 
 /* active operator — keep original color (no theme flip in new iOS) */
@@ -249,7 +258,6 @@ button[data-action='equal'] .op-label {
 }
 
 /* icons */
-/* backspace PNG — centered and slightly lowered */
 .icon-backspace {
   width: 55%;
   height: 55%;
@@ -259,7 +267,6 @@ button[data-action='equal'] .op-label {
   transform: translateY(2px);
 }
 
-/* +/- SVG — slightly lowered and sized like digits */
 button[data-action='sign'] svg {
   width: 60%;
   height: 60%;
