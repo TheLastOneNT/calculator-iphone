@@ -23,6 +23,12 @@ body {
   height: 100%;
 }
 
+html,
+body,
+.calc {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   background: #000;
