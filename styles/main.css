@@ -141,8 +141,9 @@ body {
   aspect-ratio: 1 / 1;
   border: none;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 
   background: var(--digit-bg);
@@ -154,7 +155,7 @@ body {
     BlinkMacSystemFont,
     system-ui,
     sans-serif;
-  font-weight: 300;
+  font-weight: 400;
   font-variation-settings: 'wght' 300;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
@@ -196,7 +197,7 @@ button[data-op],
 button[data-action='equal'] {
   background: var(--op-bg);
   color: var(--op-fg);
-  font-size: var(--btnFontOp);
+  font-size: calc(var(--btnFontOp) * 1.25);
 }
 
 /* active operator — keep original color (no theme flip in new iOS) */
@@ -241,7 +242,7 @@ button[data-action='equal']:active {
   display: block;
   object-fit: contain;
   filter: invert(1) brightness(1.1);
-  transform: translateY(2px);
+  transform: translateY(1px);
 }
 
 /* +/- SVG — slightly lowered and sized like digits */
