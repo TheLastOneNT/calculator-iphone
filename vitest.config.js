@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       reporter: ['text', 'html'],
-      provider: 'v8'
-    }
-  }
+      provider: 'v8',
+    },
+  },
 });

@@ -9,7 +9,11 @@ body,
 .display,
 .buttons > button,
 .expr {
-  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui,
+  font-family:
+    'SF Pro Rounded',
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
     sans-serif;
   font-synthesis-weight: none;
 }
@@ -142,30 +146,37 @@ body {
   background: var(--digit-bg);
   color: var(--digit-fg);
 
-  font-family: "Inter", "SF Pro Rounded", -apple-system, BlinkMacSystemFont,
-    system-ui, sans-serif;
+  font-family:
+    'Inter',
+    'SF Pro Rounded',
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    sans-serif;
   font-weight: 300;
-  font-variation-settings: "wght" 300;
+  font-variation-settings: 'wght' 300;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
   font-size: var(--btnFontDigit);
   line-height: 1;
 
-  transition: transform 0.06s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.06s ease,
+    box-shadow 0.12s ease;
 }
 
 /* Functional keys (AC, %, ⌫) */
 button[data-action],
-button[aria-label="Backspace"] {
+button[aria-label='Backspace'] {
   background: var(--func-bg);
   color: var(--func-fg);
   font-size: var(--btnFontFunc);
 }
 
 /* Exceptions: ± and . behave visually like digits */
-button[data-action="sign"],
-button[data-action="dot"] {
+button[data-action='sign'],
+button[data-action='dot'] {
   background: var(--digit-bg);
   color: var(--digit-fg);
   font-size: var(--btnFontDigit);
@@ -173,7 +184,7 @@ button[data-action="dot"] {
 
 /* Operators and equals */
 button[data-op],
-button[data-action="equal"] {
+button[data-action='equal'] {
   background: var(--op-bg);
   color: var(--op-fg);
   font-size: var(--btnFontOp);
@@ -181,7 +192,8 @@ button[data-action="equal"] {
 
 /* Active operator highlight (toggled via JS) */
 button.active-op {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28) inset,
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.28) inset,
     0 0 0 2px rgba(255, 255, 255, 0.18);
   filter: brightness(1.08);
 }

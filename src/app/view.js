@@ -1,6 +1,6 @@
 // View layer: DOM refs, rendering, scaling, and event binding.
 
-import { renderDisplay } from "./format.js";
+import { renderDisplay } from './format.js';
 
 export function createView({
   exprSelector,
@@ -18,19 +18,19 @@ export function createView({
   const opButtons = Array.from(document.querySelectorAll(opButtonsSelector));
 
   if (!displayEl || !buttonsEl) {
-    throw new Error("Missing .display or .buttons in DOM");
+    throw new Error('Missing .display or .buttons in DOM');
   }
 
   // Create scalable layer inside the result display so layout never shifts.
-  let fitSpan = document.createElement("span");
-  fitSpan.className = "fit";
+  let fitSpan = document.createElement('span');
+  fitSpan.className = 'fit';
   while (displayEl.firstChild) fitSpan.appendChild(displayEl.firstChild);
   displayEl.appendChild(fitSpan);
 
   // --- Rendering helpers
   function fitDisplayText() {
     if (!fitSpan) return;
-    fitSpan.style.transform = "scale(1)";
+    fitSpan.style.transform = 'scale(1)';
 
     const cw = displayEl.clientWidth;
     const sw = fitSpan.scrollWidth;
@@ -47,26 +47,25 @@ export function createView({
   function updateClearLabel(currentValue, isPercentText) {
     if (!clearBtn) return;
     const hasPercent = isPercentText(currentValue);
-    const hasTyped =
-      currentValue !== "0" || hasPercent || /[.]/.test(currentValue);
-    clearBtn.textContent = hasTyped ? "C" : "AC";
+    const hasTyped = currentValue !== '0' || hasPercent || /[.]/.test(currentValue);
+    clearBtn.textContent = hasTyped ? 'C' : 'AC';
   }
 
   function updateExpressionLine(exprFrozen) {
-    if (exprEl) exprEl.textContent = exprFrozen || "";
+    if (exprEl) exprEl.textContent = exprFrozen || '';
   }
 
   function highlightOperator(op, OP_FROM_ATTR) {
     opButtons.forEach((btn) => {
       btn.classList.toggle(
-        "active-op",
+        'active-op',
         btn.dataset.op && OP_FROM_ATTR[btn.dataset.op] === op
       );
     });
   }
 
   function clearOpHighlight() {
-    opButtons.forEach((btn) => btn.classList.remove("active-op"));
+    opButtons.forEach((btn) => btn.classList.remove('active-op'));
   }
 
   // Public render: consumes model and prepared bottom text
@@ -83,8 +82,8 @@ export function createView({
   // --- Event binding (delegation + keyboard)
   function bindUI({ onDigit, onAction, onOperator, onKey }) {
     // Buttons
-    buttonsEl.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
+    buttonsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
       if (!btn) return;
 
       const txt = btn.textContent.trim();
@@ -97,7 +96,7 @@ export function createView({
     });
 
     // Keyboard
-    document.addEventListener("keydown", (e) => onKey(e));
+    document.addEventListener('keydown', (e) => onKey(e));
   }
 
   return {

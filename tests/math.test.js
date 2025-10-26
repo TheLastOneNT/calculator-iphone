@@ -2,7 +2,7 @@ import {
   applyOp,
   evaluateTokens,
   resolveRightOperand,
-  extractLastOp
+  extractLastOp,
 } from '../src/app/math.js';
 import { describe, it, expect } from 'vitest';
 
