@@ -51,6 +51,7 @@ footer.credit {
 
 footer.credit span {
   background: linear-gradient(90deg, #ff9500, #ffcc00);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   font-weight: 600;
