@@ -262,7 +262,7 @@ button[data-action='sign'] svg {
 /* compact heights */
 @media (max-height: 740px) {
   :root {
-    --display-font-max: 60px;
+    --display-font-max: 82px;
   }
 }
 
