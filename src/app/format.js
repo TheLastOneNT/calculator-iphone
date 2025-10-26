@@ -1,7 +1,6 @@
 // format.js — pure presentation helpers shared by controller and tests
 
-// Keep these helpers framework-agnostic and side-effect free.
-// Tests import renderDisplay() and toDisplayString() from here.
+// === helpers ================================================================
 
 /** Returns true when string is a percent literal (e.g., "15%"). */
 export function isPercentText(s) {
@@ -17,72 +16,110 @@ export function trimTrailingZeros(str) {
   return f.length ? i + '.' + f : i;
 }
 
+/** Insert thousand separators (commas) into a numeric string. Idempotent. */
+function addThousands(numStr) {
+  if (typeof numStr !== 'string') numStr = String(numStr);
+  if (!/^[-]?\d+(\.\d+)?$/.test(numStr.replace(/,/g, ''))) return numStr; // not a plain number
+  if (numStr.includes(',')) return numStr; // already formatted
+
+  const sign = numStr.startsWith('-') ? '-' : '';
+  const s = sign ? numStr.slice(1) : numStr;
+  const [intPart, frac = ''] = s.split('.');
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return frac ? sign + withCommas + '.' + frac : sign + withCommas;
+}
+
+// === number → display string ===============================================
+
 /**
  * Convert a number to a human string under a MAX_LEN constraint.
- * - Prefers fixed decimal when it fits, trims trailing zeros.
- * - Falls back to exponential if needed.
- * - Returns "Undefined" for invalid numbers.
+ * Now always uses thousand separators for the integer part.
  */
 export function toDisplayString(num, cfg = {}) {
   const MAX_LEN = Number.isFinite(cfg.MAX_LEN) ? cfg.MAX_LEN : 13;
   const UNDEF = cfg.UNDEF ?? 'Undefined';
 
-  if (!Number.isFinite(num)) return UNDEF;
+  const n = Number(num);
+  if (!Number.isFinite(n)) return UNDEF;
 
-  let s = String(num);
-  s = trimTrailingZeros(s);
-  if (s.length <= MAX_LEN) return s;
+  // 1) Try fixed with commas, reducing fractional digits until it fits
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  const MAX_FRAC = 12;
 
-  if (s.includes('.')) {
-    const [i] = s.split('.');
-    const free = Math.max(0, MAX_LEN - i.length - 1);
-    if (free > 0) {
-      s = Number(num).toFixed(free);
+  for (let frac = MAX_FRAC; frac >= 0; frac--) {
+    let s = abs.toString();
+    if (frac < MAX_FRAC) {
+      s = abs.toFixed(frac);
       s = trimTrailingZeros(s);
-      if (s.length <= MAX_LEN) return s;
-    } else {
-      return i.slice(0, MAX_LEN);
     }
+    s = addThousands(s);
+    s = sign ? (s.startsWith('-') ? s : '-' + s) : s; // ensure sign
+
+    if (s.length <= MAX_LEN) return s;
   }
 
-  const reserve = (s.startsWith('-') ? 1 : 0) + 6; // "e±NN"
+  // 2) Fall back to exponential
+  const reserve = (sign ? 1 : 0) + 6; // "e±NN" and sign
   const digits = Math.max(0, MAX_LEN - reserve);
-  s = Number(num).toExponential(Math.max(0, digits));
-  return s.length <= MAX_LEN ? s : s.slice(0, MAX_LEN);
+  const exp = n.toExponential(digits);
+  return exp.length <= MAX_LEN ? exp : exp.slice(0, MAX_LEN);
 }
+
+// === render the bottom display =============================================
 
 /**
  * Render final text for the bottom display, matching iOS nuances.
- * Consumers pass { showingResult } to decide how to style negatives.
+ * Now also adds thousands separators while typing numbers.
  */
 export function renderDisplay(text, { showingResult = false } = {}) {
   const t = String(text).trim();
   const UNDEF = 'Undefined';
   if (t === UNDEF) return t;
 
-  // Live expression: if it already contains operators and spaces — show as is.
+  // If it already looks like a composed expression ("A op B") — show as is;
+  // numbers inside приходят уже отформатированными через formatExprPart.
   if (/[+\-×÷]/.test(t) && /\s/.test(t)) return t;
 
-  // Percent literal: during typing negatives show as (-10%)
+  // Percent literal: during typing negatives show as (-10%); also add commas to core
   if (isPercentText(t)) {
-    const core = t.slice(0, -1).trim();
-    if (core.startsWith('-')) return `(-${core.slice(1)}%)`;
-    return t;
+    const core = t.slice(0, -1).trim(); // may be "-12345.6"
+    const coreFmt = addThousands(core.replace(/,/g, ''));
+    if (core.startsWith('-')) return `(-${coreFmt.slice(1)}%)`;
+    return coreFmt + '%';
   }
 
-  // Negatives: wrap while typing; plain "-N" on result screen.
-  if (/^-/.test(t)) return showingResult ? t : `(-${t.slice(1)})`;
+  // Plain number: add commas; negatives wrapped while typing
+  if (/^-?\d+(\.\d+)?$/.test(t.replace(/,/g, ''))) {
+    const fmt = addThousands(t.replace(/,/g, ''));
+    if (/^-/.test(fmt)) {
+      return showingResult ? fmt : `(-${fmt.slice(1)})`;
+    }
+    return fmt;
+  }
 
   return t;
 }
 
-/** Format numeric or percent parts for expression line */
+// === expression parts =======================================================
+
+/** Format numeric or percent parts for expression line (top) */
 export function formatExprPart(part) {
   if (part == null) return '';
-  if (typeof part === 'number') return String(part);
-  if (typeof part === 'string') return part;
+  if (typeof part === 'number') {
+    return addThousands(String(part));
+  }
+  if (typeof part === 'string') {
+    // numeric string?
+    if (/^-?\d+(\.\d+)?$/.test(part.replace(/,/g, ''))) {
+      return addThousands(part.replace(/,/g, ''));
+    }
+    return part;
+  }
+  // percent node
   if (part && typeof part === 'object' && part.percent) {
-    return String(part.value) + '%';
+    const core = addThousands(String(part.value));
+    return `${core}%`;
   }
   return String(part);
 }
